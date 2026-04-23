@@ -52,6 +52,7 @@ class OutputManifest(BaseModel):
     job_id: str
     generated_at: str
     files: list[str]
+    source_transcript: str
 
 
 class MinutesOutput(BaseModel):

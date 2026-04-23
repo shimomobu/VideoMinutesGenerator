@@ -16,7 +16,7 @@ from vmg.common.models import (
     Transcript,
     TranscriptSegment,
 )
-from vmg.export import OutputError, write_json, write_markdown
+from vmg.export import OutputError, write_json, write_manifest, write_markdown
 
 
 @pytest.fixture()
@@ -61,6 +61,7 @@ def sample_minutes() -> MinutesOutput:
             job_id="job_001",
             generated_at="2026-04-23T10:00:00",
             files=["minutes.md", "minutes.json"],
+            source_transcript="data/work/job_001/transcript.json",
         ),
     )
 
@@ -190,4 +191,162 @@ class TestWriteJson:
     def test_accepts_str_output_dir(self, tmp_path, sample_minutes):
         """output_dir に文字列を渡しても動作すること"""
         result = write_json(sample_minutes, job_id="job_001", output_dir=str(tmp_path))
+        assert result.exists()
+
+
+class TestWriteManifest:
+    def test_returns_path(self, tmp_path):
+        """戻り値が Path オブジェクトであること"""
+        result = write_manifest(
+            job_id="job_001",
+            generated_at="2026-04-23T10:00:00+09:00",
+            files=["minutes.md", "minutes.json"],
+            source_transcript="data/work/job_001/transcript.json",
+            output_dir=tmp_path,
+        )
+        assert isinstance(result, Path)
+
+    def test_file_is_created(self, tmp_path):
+        """manifest.json ファイルが作成されること"""
+        result = write_manifest(
+            job_id="job_001",
+            generated_at="2026-04-23T10:00:00+09:00",
+            files=["minutes.md", "minutes.json"],
+            source_transcript="data/work/job_001/transcript.json",
+            output_dir=tmp_path,
+        )
+        assert result.exists()
+        assert result.name == "manifest.json"
+
+    def test_output_path_structure(self, tmp_path):
+        """出力パスが {output_dir}/{job_id}/manifest.json であること"""
+        result = write_manifest(
+            job_id="job_abc",
+            generated_at="2026-04-23T10:00:00+09:00",
+            files=[],
+            source_transcript="data/work/job_abc/transcript.json",
+            output_dir=tmp_path,
+        )
+        assert result == tmp_path / "job_abc" / "manifest.json"
+
+    def test_json_schema(self, tmp_path):
+        """JSON に job_id / generated_at / files / source_transcript が含まれること"""
+        result = write_manifest(
+            job_id="job_001",
+            generated_at="2026-04-23T10:00:00+09:00",
+            files=["minutes.md", "minutes.json"],
+            source_transcript="data/work/job_001/transcript.json",
+            output_dir=tmp_path,
+        )
+        data = json.loads(result.read_text(encoding="utf-8"))
+        assert "job_id" in data
+        assert "generated_at" in data
+        assert "files" in data
+        assert "source_transcript" in data
+
+    def test_job_id_in_output(self, tmp_path):
+        """job_id が正しく出力されること"""
+        result = write_manifest(
+            job_id="job_xyz",
+            generated_at="2026-04-23T10:00:00+09:00",
+            files=[],
+            source_transcript="data/work/job_xyz/transcript.json",
+            output_dir=tmp_path,
+        )
+        data = json.loads(result.read_text(encoding="utf-8"))
+        assert data["job_id"] == "job_xyz"
+
+    def test_generated_at_iso8601(self, tmp_path):
+        """generated_at が ISO8601 形式で出力されること"""
+        from datetime import datetime
+        generated_at = "2026-04-23T10:00:00+09:00"
+        result = write_manifest(
+            job_id="job_001",
+            generated_at=generated_at,
+            files=[],
+            source_transcript="data/work/job_001/transcript.json",
+            output_dir=tmp_path,
+        )
+        data = json.loads(result.read_text(encoding="utf-8"))
+        # ISO8601 として parse できること
+        datetime.fromisoformat(data["generated_at"])
+        assert data["generated_at"] == generated_at
+
+    def test_files_list_in_output(self, tmp_path):
+        """files リストが正しく出力されること"""
+        files = ["minutes.md", "minutes.json"]
+        result = write_manifest(
+            job_id="job_001",
+            generated_at="2026-04-23T10:00:00+09:00",
+            files=files,
+            source_transcript="data/work/job_001/transcript.json",
+            output_dir=tmp_path,
+        )
+        data = json.loads(result.read_text(encoding="utf-8"))
+        assert data["files"] == files
+
+    def test_source_transcript_in_output(self, tmp_path):
+        """source_transcript が正しく出力されること"""
+        src = "data/work/job_001/transcript.json"
+        result = write_manifest(
+            job_id="job_001",
+            generated_at="2026-04-23T10:00:00+09:00",
+            files=[],
+            source_transcript=src,
+            output_dir=tmp_path,
+        )
+        data = json.loads(result.read_text(encoding="utf-8"))
+        assert data["source_transcript"] == src
+
+    def test_pretty_print(self, tmp_path):
+        """JSON がインデント付き（pretty-print）で出力されること"""
+        result = write_manifest(
+            job_id="job_001",
+            generated_at="2026-04-23T10:00:00+09:00",
+            files=["minutes.md"],
+            source_transcript="data/work/job_001/transcript.json",
+            output_dir=tmp_path,
+        )
+        raw = result.read_text(encoding="utf-8")
+        assert "\n" in raw
+        assert "  " in raw
+
+    def test_output_dir_created_automatically(self, tmp_path):
+        """存在しない出力ディレクトリが自動作成されること"""
+        new_base = tmp_path / "does_not_exist_yet"
+        result = write_manifest(
+            job_id="job_001",
+            generated_at="2026-04-23T10:00:00+09:00",
+            files=[],
+            source_transcript="data/work/job_001/transcript.json",
+            output_dir=new_base,
+        )
+        assert result.parent.exists()
+
+    def test_output_error_on_permission_denied(self, tmp_path):
+        """書き込み権限なし時に OutputError が発生すること"""
+        readonly_dir = tmp_path / "readonly"
+        readonly_dir.mkdir()
+        readonly_dir.chmod(0o555)
+        try:
+            with pytest.raises(OutputError):
+                write_manifest(
+                    job_id="job_001",
+                    generated_at="2026-04-23T10:00:00+09:00",
+                    files=[],
+                    source_transcript="data/work/job_001/transcript.json",
+                    output_dir=readonly_dir,
+                )
+        finally:
+            readonly_dir.chmod(0o755)
+
+    def test_accepts_str_output_dir(self, tmp_path):
+        """output_dir に文字列を渡しても動作すること"""
+        result = write_manifest(
+            job_id="job_001",
+            generated_at="2026-04-23T10:00:00+09:00",
+            files=[],
+            source_transcript="data/work/job_001/transcript.json",
+            output_dir=str(tmp_path),
+        )
         assert result.exists()

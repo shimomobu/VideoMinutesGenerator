@@ -229,6 +229,7 @@ class TestOutputManifest:
             job_id="job-001",
             generated_at="2026-04-22T10:00:00",
             files=["minutes.md", "minutes.json"],
+            source_transcript="data/work/job-001/transcript.json",
         )
         assert manifest.job_id == "job-001"
         assert len(manifest.files) == 2
@@ -238,18 +239,24 @@ class TestOutputManifest:
             job_id="job-002",
             generated_at="2026-04-22T10:00:00",
             files=[],
+            source_transcript="data/work/job-002/transcript.json",
         )
         assert manifest.files == []
 
     def test_missing_job_id_raises(self):
         with pytest.raises(ValidationError):
-            OutputManifest(generated_at="2026-04-22T10:00:00", files=[])
+            OutputManifest(
+                generated_at="2026-04-22T10:00:00",
+                files=[],
+                source_transcript="data/work/x/transcript.json",
+            )
 
     def test_json_roundtrip(self):
         manifest = OutputManifest(
             job_id="j",
             generated_at="2026-04-22T10:00:00",
             files=["a.md"],
+            source_transcript="data/work/j/transcript.json",
         )
         restored = OutputManifest.model_validate_json(manifest.model_dump_json())
         assert restored == manifest
@@ -272,6 +279,7 @@ class TestMinutesOutput:
             job_id="j1",
             generated_at="2026-04-22T10:00:00",
             files=[],
+            source_transcript="data/work/j1/transcript.json",
         )
         output = MinutesOutput(
             meeting_info=info,
@@ -292,6 +300,7 @@ class TestMinutesOutput:
                     job_id="j",
                     generated_at="2026-04-22T10:00:00",
                     files=[],
+                    source_transcript="data/work/j/transcript.json",
                 ),
             )
 
@@ -316,6 +325,7 @@ class TestMinutesOutput:
             job_id="jj",
             generated_at="2026-04-22T10:00:00",
             files=["out.md"],
+            source_transcript="data/work/jj/transcript.json",
         )
         output = MinutesOutput(
             meeting_info=info,
