@@ -1,0 +1,74 @@
+# 議事録
+
+## 1. 会議情報
+- 会議名: {{ meeting_info.title }}
+- 日時: {{ meeting_info.datetime }}
+- 参加者: {{ meeting_info.participants | join(', ') }}
+- 元動画ファイル: {{ meeting_info.source_file }}
+- 会議時間: {{ meeting_info.duration_seconds // 3600 }}時間{{ (meeting_info.duration_seconds % 3600) // 60 }}分
+
+## 2. 会議要約
+{{ analysis.summary if analysis.summary else '（なし）' }}
+
+## 3. 議題
+{% if analysis.agenda %}
+{% for item in analysis.agenda %}
+{{ loop.index }}. {{ item }}
+{% endfor %}
+{% else %}
+（なし）
+{% endif %}
+
+## 4. 議論内容
+{% if analysis.topics %}
+{% for topic in analysis.topics %}
+### {{ topic.title }}
+{{ topic.summary }}
+{% if topic.key_points %}
+{% for point in topic.key_points %}
+- {{ point }}
+{% endfor %}
+{% endif %}
+
+{% endfor %}
+{% else %}
+（なし）
+{% endif %}
+
+## 5. 決定事項
+{% if analysis.decisions %}
+{% for item in analysis.decisions %}
+- {{ item }}
+{% endfor %}
+{% else %}
+- （なし）
+{% endif %}
+
+## 6. 保留事項
+{% if analysis.pending_items %}
+{% for item in analysis.pending_items %}
+- {{ item }}
+{% endfor %}
+{% else %}
+- （なし）
+{% endif %}
+
+## 7. ToDo
+| No | タスク | 担当候補 | 期限候補 | 備考 |
+|---|---|---|---|---|
+{% if analysis.todos %}
+{% for todo in analysis.todos %}
+| {{ loop.index }} | {{ todo.task }} | {{ todo.owner_candidate or '' }} | {{ todo.due_date_candidate or '' }} | {{ todo.notes or '' }} |
+{% endfor %}
+{% else %}
+| - | （なし） | | | |
+{% endif %}
+
+## 8. 参考ログ
+{% if transcript.segments %}
+{% for seg in transcript.segments %}
+- [{{ seg.start | seconds_to_hms }}]{% if seg.speaker %} {{ seg.speaker }}:{% endif %} {{ seg.text }}
+{% endfor %}
+{% else %}
+（ログなし）
+{% endif %}

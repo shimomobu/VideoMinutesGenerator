@@ -1,0 +1,35 @@
+# VideoMinutesGenerator デフォルト設定
+# 本番環境では環境変数または .env で上書きすること
+
+asr:
+  provider: whisper_local   # whisper_local | whisper_api | faster_whisper
+  model_size: small         # tiny | base | small | medium | large
+  language: ja
+
+analysis:
+  provider: claude          # claude のみ（MVP）
+  model: claude-sonnet-4-6
+  max_retries: 3
+  timeout_seconds: 120
+
+api_policy:
+  send_audio: false         # 音声ファイルの外部送信を禁止
+  send_video: false         # 映像ファイルの外部送信を禁止
+  send_transcript: true     # transcript テキストの外部送信（Claude API向け）
+  anonymize_mode: false     # 匿名化モード（将来拡張）
+
+diarization:
+  enabled: false            # MVP では無効。将来 pyannote.audio で有効化
+
+formatter:
+  template: standard        # standard のみ（MVP）
+
+pipeline:
+  input_dir: data/input
+  work_dir: data/work
+  output_dir: data/output
+  log_dir: logs
+
+logging:
+  level: INFO
+  format: jsonl
