@@ -1,7 +1,10 @@
 """export — ファイル出力モジュール"""
 from __future__ import annotations
 
+import json
 from pathlib import Path
+
+from vmg.common.models import MinutesOutput
 
 
 class OutputError(Exception):
@@ -21,4 +24,23 @@ def write_markdown(
         out_path.write_text(content, encoding="utf-8")
     except OSError as e:
         raise OutputError(f"minutes.md の書き込みに失敗しました: {e}") from e
+    return out_path
+
+
+def write_json(
+    minutes: MinutesOutput,
+    job_id: str,
+    output_dir: Path | str = Path("data/output"),
+) -> Path:
+    """MinutesOutput を {output_dir}/{job_id}/minutes.json に書き出す。"""
+    out_dir = Path(output_dir) / job_id
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / "minutes.json"
+        out_path.write_text(
+            json.dumps(minutes.model_dump(), indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+    except OSError as e:
+        raise OutputError(f"minutes.json の書き込みに失敗しました: {e}") from e
     return out_path
