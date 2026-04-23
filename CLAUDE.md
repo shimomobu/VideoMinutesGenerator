@@ -16,7 +16,7 @@
   - 会議動画ファイル（mp4 / mov / mkv）
 - 基本方針:
   - 音声・動画はローカル処理
-  - Claude API へは transcript テキストのみ送信
+  - すべてのデータをローカル処理（Gemma 4 + Ollama）。外部送信なし
   - MVPを小さく順番に実装する
 
 ---
@@ -73,8 +73,8 @@
 ### 4.3 セキュリティ前提
 - 音声ファイルは外部送信しない
 - 動画ファイルは外部送信しない
-- transcript テキストのみ Claude API 送信可
-- 将来、匿名化・マスキング・外部送信禁止モードを追加可能な設計を維持する
+- transcript テキストを含む全データを外部送信しない（Gemma 4 + Ollama 完全ローカル）
+- 匿名化・マスキング機能は将来拡張として設計上は維持する
 
 ### 4.4 ToDo の扱い
 - `owner_candidate`
@@ -114,12 +114,12 @@
 ## 6. 外部依存の扱い
 
 ### 6.1 単体テストでは実呼び出ししないもの
-- Claude API
+- Ollama（httpx.post）
 - FFmpeg
 - Whisper
 
 ### 6.2 モック方針
-- Claude API: モック / スタブ
+- Ollama: `httpx.post` をモック
 - FFmpeg: `subprocess.run` をモック
 - Whisper: `load_model` / `transcribe` をモック
 - ファイル書き込み: `tmp_path` を優先利用
@@ -206,7 +206,7 @@
 - TASK-03-01 WhisperLocalProvider 実装
 - TASK-03-02 transcript.json 出力
 - TASK-04-01 input_builder 実装
-- TASK-04-02 extractor 実装（Claude API）
+- TASK-04-02 extractor 実装（Ollama/httpx）
 - TASK-04-03 validator 実装
 - TASK-04-04 postprocess 実装
 - AnalysisResult 差分解消（agenda / decisions / pending_items / notes 追加、Topic 定義統一）

@@ -42,8 +42,8 @@ def run_pipeline(
     participants: list[str],
     asr_provider: ASRProvider,
     formatter_provider: FormatterProvider,
-    model: str = "claude-sonnet-4-6",
-    api_key: str = "",
+    model: str = "gemma4",
+    base_url: str = "http://localhost:11434/v1",
     work_dir: str | Path = "data/work",
     output_dir: str | Path = "data/output",
     log_dir: str | Path = "logs",
@@ -90,11 +90,11 @@ def run_pipeline(
     if not force and analysis_json.exists():
         analysis_result = _try_load_json(analysis_json, AnalysisResult, logger, "analysis")
         if analysis_result is None:
-            analysis_result = _execute_analysis(logger, transcript, model, api_key, job_meta.job_id, work_dir)
+            analysis_result = _execute_analysis(logger, transcript, model, base_url, job_meta.job_id, work_dir)
         else:
             logger.info(stage="analysis", message="analysis.json が存在するためスキップ")
     else:
-        analysis_result = _execute_analysis(logger, transcript, model, api_key, job_meta.job_id, work_dir)
+        analysis_result = _execute_analysis(logger, transcript, model, base_url, job_meta.job_id, work_dir)
 
     # --- Stage 5: formatter ---
     meeting_info = MeetingInfo(
@@ -143,13 +143,13 @@ def _execute_analysis(
     logger: StructuredLogger,
     transcript: Transcript,
     model: str,
-    api_key: str,
+    base_url: str,
     job_id: str,
     work_dir: Path,
 ) -> AnalysisResult:
     chunks = _run(logger, "analysis.input_builder", build_prompt, transcript)
     if chunks:
-        raw_results = [_run(logger, "analysis.extractor", extract, chunk, model, api_key) for chunk in chunks]
+        raw_results = [_run(logger, "analysis.extractor", extract, chunk, model, base_url) for chunk in chunks]
         validated_results = [_run(logger, "analysis.validator", validate_analysis, raw) for raw in raw_results]
         merged = _merge_validated(validated_results)
     else:

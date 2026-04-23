@@ -1,4 +1,4 @@
-"""analysis.extractor — Claude API を呼び出して RawAnalysisJSON を取得する"""
+"""analysis.extractor — Ollama（ローカルLLM）を呼び出して RawAnalysisJSON を取得する"""
 from __future__ import annotations
 
 from vmg.analysis.input_builder import PromptInput
@@ -24,27 +24,45 @@ _SYSTEM_PROMPT = (
 def extract(
     prompt_input: PromptInput,
     model: str,
-    api_key: str,
+    base_url: str,
     max_retries: int = 3,
 ) -> RawAnalysisJSON:
     last_error: Exception | None = None
     for _ in range(max_retries):
         try:
-            return _call_api(prompt_input.prompt, model, api_key)
+            return _call_api(prompt_input.prompt, model, base_url)
         except Exception as e:
             last_error = e
     raise LLMError(
-        f"Claude API 呼び出しが {max_retries} 回失敗しました: {last_error}"
+        f"Ollama 呼び出しが {max_retries} 回失敗しました: {last_error}"
     ) from last_error
 
 
-def _call_api(prompt: str, model: str, api_key: str) -> str:
-    import anthropic
-    client = anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model=model,
-        max_tokens=4096,
-        system=_SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return message.content[0].text
+def _call_api(prompt: str, model: str, base_url: str) -> str:
+    import httpx
+
+    url = f"{base_url.rstrip('/')}/chat/completions"
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+        "stream": False,
+    }
+    try:
+        response = httpx.post(url, json=payload, timeout=120.0)
+        response.raise_for_status()
+    except httpx.ConnectError as e:
+        raise LLMError(
+            f"Ollama に接続できませんでした。"
+            f"Ollama が起動しているか確認してください。"
+            f"(base_url={base_url}, model={model}, 原因: {e})"
+        ) from e
+    except httpx.HTTPStatusError as e:
+        raise LLMError(
+            f"Ollama からエラーレスポンスが返りました: HTTP {e.response.status_code} "
+            f"(base_url={base_url}, model={model})"
+        ) from e
+    data = response.json()
+    return data["choices"][0]["message"]["content"]

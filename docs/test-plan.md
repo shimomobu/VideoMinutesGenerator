@@ -17,7 +17,7 @@
 |---|---|
 | TDD | 実装前にテストを書く（RED → GREEN → REFACTOR） |
 | 疎結合テスト | 各モジュールは外部依存を最小化した状態で単体テストできること |
-| 外部API分離 | Claude API・FFmpeg・Whisper の呼び出しは単体テストではモック/スタブに差し替える |
+| 外部API分離 | Ollama・FFmpeg・Whisper の呼び出しは単体テストではモック/スタブに差し替える |
 | カバレッジ目標 | 単体テスト・結合テストを合わせて `src/` 配下で **80%以上** を最低ラインとする（E2Eテストはカバレッジ目標の主対象外） |
 | E2E限定実行 | E2Eテストは処理が重いため `@pytest.mark.slow` で分類し、通常の CI では省略可能とする |
 
@@ -98,7 +98,7 @@ tests/
 | テスト対象 | 主なテストケース |
 |---|---|
 | input_builder | 短い transcript（分割なし）のプロンプト生成 / 長い transcript（分割発生）のチャンク分割 / 空 transcript の処理 |
-| extractor | Claude API モック経由の正常応答 / API エラー時のリトライ（最大3回）/ リトライ超過時の LLMError / **単体テストでは Claude API をモック/スタブに差し替えて実行する** |
+| extractor | Ollama（httpx）モック経由の正常応答 / 接続エラー時のリトライ（最大3回）/ リトライ超過時の LLMError / **単体テストでは httpx.post をモック/スタブに差し替えて実行する** |
 | validator | 正常スキーマのパス / 必須フィールド欠落の LLMError / 型不一致の LLMError / JSON parse 失敗の LLMError |
 | postprocess | `owner_candidate` / `due_date_candidate` の設定確認 / 重複 decisions の除去 / 「来週」「月末」等の曖昧表現の保持 / analysis.json のスキーマ確認 |
 
@@ -142,13 +142,13 @@ tests/
 
 | 外部依存 | モック方法 | 適用テスト種別 |
 |---|---|---|
-| **Claude API**（`anthropic.Anthropic`） | `unittest.mock.patch` または `pytest-mock` でレスポンスを固定 | 単体テスト・結合テスト |
+| **Ollama HTTP API**（`httpx.post`） | `mocker.patch("httpx.post")` でレスポンスを固定 | 単体テスト・結合テスト |
 | **FFmpeg**（`subprocess.run`） | `subprocess.run` をモックし、正常終了・失敗をシミュレート | 単体テスト |
 | **Whisper モデル**（`whisper.load_model`） | モデルロードと `transcribe` をスタブ化し、サンプル transcript を返す | 単体テスト・結合テスト |
 | **ファイルシステム（書き込み）** | `tmp_path`（pytest 組み込み）を使用して実ファイル書き込みを分離 | 単体テスト |
 
-> **方針**: E2Eテスト以外では実際の Claude API・FFmpeg・Whisper を呼び出さない。  
-> 単体テストで Claude API をモック化することで、APIコスト・ネットワーク依存・応答時間を排除する。
+> **方針**: E2Eテスト以外では実際の Ollama・FFmpeg・Whisper を呼び出さない。  
+> 単体テストで `httpx.post` をモック化することで、Ollama 起動依存・応答時間を排除する。
 
 ---
 
@@ -164,16 +164,15 @@ tests/
 | 5秒未満の極短時間音声 | 警告ログ出力後に処理継続 |
 | 空の文字起こし結果（無音・聞き取り不能） | 空 Transcript として analysis へ渡す / summary が空でも異常終了しない |
 
-### 6.2 外部API異常（Claude API）
+### 6.2 外部処理異常（Ollama）
 
 | 観点 | 期待する動作 |
 |---|---|
-| API 接続エラー | 最大3回リトライ後に LLMError |
+| Ollama 未起動・接続エラー | 最大3回リトライ後に LLMError（base_url / model / 起動確認を含むメッセージ） |
 | タイムアウト | 最大3回リトライ後に LLMError |
-| レート制限・一時的失敗（429 / 503 等） | 最大3回リトライ後に LLMError |
+| HTTP エラーレスポンス（500 等） | 最大3回リトライ後に LLMError |
 | 不正な JSON レスポンス（parse 失敗） | validator が LLMError を発生させる |
 | 必須フィールド欠落のレスポンス | validator が LLMError を発生させ、再プロンプトを試みる（最大2回） |
-| APIキー未設定 | 起動時 ConfigError |
 
 ### 6.3 ファイルシステム異常
 
@@ -238,15 +237,15 @@ tests/
 
 ### 8.1 目的
 
-実際の Whisper と Claude API を使い、パイプライン全体が完走して正しい出力ファイルが生成されることを確認する。
+実際の Whisper と Ollama（ローカルLLM / Gemma 4）を使い、パイプライン全体が完走して正しい出力ファイルが生成されることを確認する。
 
 ### 8.2 前提・制約
 
 | 項目 | 内容 |
 |---|---|
-| フィクスチャ動画 | `tests/fixtures/sample_short.mp4`（**< 1分の短尺動画のみ使用**。Whisper・Claude API 呼び出しを伴うため長尺動画は使用しない） |
-| 実API使用 | ローカル Whisper モデル + 実際の Claude API を使用 |
-| APIキー | 環境変数 `ANTHROPIC_API_KEY` が設定されていること |
+| フィクスチャ動画 | `tests/fixtures/sample_short.mp4`（**< 1分の短尺動画のみ使用**。Whisper・Ollama 呼び出しを伴うため長尺動画は使用しない） |
+| 実API使用 | ローカル Whisper モデル + ローカル Ollama（Gemma 4）を使用 |
+| Ollama | Ollama が起動していること（`ollama serve` または常駐プロセス） |
 | FFmpeg | 実行環境に FFmpeg がインストールされていること |
 | Whisper モデル | `tiny` または `small` モデルを使用（テスト速度優先） |
 | 実行条件 | `@pytest.mark.slow` でマーク。通常の CI では省略し、E2E専用ジョブまたは手動で実行する |
@@ -258,6 +257,7 @@ tests/
 pytest tests/unit/ tests/integration/ -v
 
 # E2Eのみ実行（-m slow は @pytest.mark.slow マーク付きのテストのみ対象）
+# 事前に Ollama を起動しておくこと: ollama serve
 pytest tests/ -m slow -v
 
 # すべて実行（unit + integration + E2E）

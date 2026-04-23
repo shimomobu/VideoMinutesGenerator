@@ -7,15 +7,16 @@ asr:
   language: ja
 
 analysis:
-  provider: claude          # claude のみ（MVP）
-  model: claude-sonnet-4-6
+  provider: ollama
+  model: gemma4
+  base_url: http://localhost:11434/v1
   max_retries: 3
   timeout_seconds: 120
 
 api_policy:
   send_audio: false         # 音声ファイルの外部送信を禁止
   send_video: false         # 映像ファイルの外部送信を禁止
-  send_transcript: true     # transcript テキストの外部送信（Claude API向け）
+  send_transcript: false    # transcript テキストの外部送信を禁止（完全ローカル）
   anonymize_mode: false     # 匿名化モード（将来拡張）
 
 diarization:

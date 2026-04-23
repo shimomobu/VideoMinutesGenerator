@@ -27,8 +27,8 @@ def mock_config(mocker):
     from unittest.mock import MagicMock
     cfg = MagicMock()
     cfg.whisper_model = "base"
-    cfg.claude_model = "claude-sonnet-4-6"
-    cfg.anthropic_api_key = "test_key"
+    cfg.llm_model = "gemma4"
+    cfg.ollama_base_url = "http://localhost:11434/v1"
     return mocker.patch("vmg.cli.load_config", return_value=cfg)
 
 

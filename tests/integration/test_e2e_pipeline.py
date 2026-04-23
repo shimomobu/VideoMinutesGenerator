@@ -7,18 +7,17 @@
 実行前提（いずれか欠落時は自動スキップ）:
   - tests/fixtures/sample_short.mp4 が存在すること（< 1 分の短尺動画）
       FFmpeg が利用可能な場合は自動生成を試みる（3 秒の無音黒画面）
-  - ANTHROPIC_API_KEY 環境変数が設定されていること
+  - Ollama が起動していること（ollama serve）かつ gemma4 モデルが利用可能であること
   - FFmpeg がインストールされていること
   - openai-whisper がインストールされていること
 
 手動実行例:
-  export ANTHROPIC_API_KEY=<your-key>
+  ollama serve &
   pytest tests/integration/test_e2e_pipeline.py -m slow -v -s
 """
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 from dataclasses import dataclass
 from datetime import datetime
@@ -94,11 +93,24 @@ class E2EContext:
     log_dir: Path
 
 
+_OLLAMA_BASE_URL = "http://localhost:11434/v1"
+_OLLAMA_MODEL = "gemma4"
+
+
+def _ollama_available() -> bool:
+    try:
+        import httpx
+        httpx.get(_OLLAMA_BASE_URL.replace("/v1", ""), timeout=3.0)
+        return True
+    except Exception:
+        return False
+
+
 @pytest.fixture(scope="class")
 def e2e_ctx(fixture_video, tmp_path_factory) -> E2EContext:
     """パイプラインを一度だけ実行し、テストクラス内で共有する。"""
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        pytest.skip("ANTHROPIC_API_KEY が設定されていません")
+    if not _ollama_available():
+        pytest.skip("Ollama が起動していません（ollama serve を実行してください）")
     if not _ffmpeg_available():
         pytest.skip("FFmpeg がインストールされていません")
     if not _whisper_importable():
@@ -116,8 +128,8 @@ def e2e_ctx(fixture_video, tmp_path_factory) -> E2EContext:
         participants=["テスト参加者"],
         asr_provider=WhisperLocalProvider(model_name=_WHISPER_MODEL),
         formatter_provider=StandardFormatter(),
-        model="claude-sonnet-4-6",
-        api_key=os.environ["ANTHROPIC_API_KEY"],
+        model=_OLLAMA_MODEL,
+        base_url=_OLLAMA_BASE_URL,
         work_dir=tmp / "work",
         output_dir=tmp / "output",
         log_dir=tmp / "logs",

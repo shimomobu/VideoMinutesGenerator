@@ -44,8 +44,8 @@ def main(
             participants=list(participants),
             asr_provider=asr_provider,
             formatter_provider=formatter_provider,
-            model=config.claude_model,
-            api_key=config.anthropic_api_key,
+            model=config.llm_model,
+            base_url=config.ollama_base_url,
             force=force,
         )
     except PipelineError as e:

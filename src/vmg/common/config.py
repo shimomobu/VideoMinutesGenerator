@@ -1,7 +1,6 @@
 """設定管理 — config/default.yaml + 環境変数から AppConfig を生成する"""
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import yaml
@@ -33,8 +32,8 @@ class PathsConfig(BaseModel):
 
 
 class AppConfig(BaseModel):
-    anthropic_api_key: str
-    claude_model: str
+    llm_model: str
+    ollama_base_url: str
     whisper_model: str
     api_policy: ApiPolicyConfig
     diarization: DiarizationConfig
@@ -52,17 +51,10 @@ def load_config(config_path: str | Path = _DEFAULT_CONFIG_PATH) -> AppConfig:
     except Exception as e:
         raise ConfigError(f"設定ファイルの読み込みに失敗しました: {e}") from e
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        raise ConfigError(
-            "ANTHROPIC_API_KEY 環境変数が設定されていません。"
-            "export ANTHROPIC_API_KEY=<your-key> を実行してください。"
-        )
-
     try:
         config = AppConfig(
-            anthropic_api_key=api_key,
-            claude_model=raw["analysis"]["model"],
+            llm_model=raw["analysis"]["model"],
+            ollama_base_url=raw["analysis"]["base_url"],
             whisper_model=raw["asr"]["model_size"],
             api_policy=ApiPolicyConfig(**raw["api_policy"]),
             diarization=DiarizationConfig(**raw["diarization"]),

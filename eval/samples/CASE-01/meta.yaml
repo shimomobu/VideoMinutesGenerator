@@ -1,0 +1,44 @@
+case_id: CASE-01
+title: 技術定例（スプリントレビュー等）
+purpose: >
+  基本動作確認。音声品質が良好な標準ケースで全ステージが正常に通過し、
+  全8セクションが出力されることを確認する。
+
+meeting_type: 技術定例
+participants_count:
+  min: 2
+  max: 3
+duration_minutes:
+  min: 10
+  max: 15
+audio_quality: good   # good / fair / poor
+
+expected_checks:
+  pipeline:
+    - 全ステージ（preprocess / asr / analysis / formatter / export）がエラーなく通過すること
+    - logs/{job_id}.jsonl に全ステージのエントリが記録されること
+    - minutes.md / minutes.json / manifest.json の3ファイルが生成されること
+  markdown:
+    - "# 議事録" で始まること
+    - 会議情報 / 要約 / 議題 / 決定事項 / 保留事項 / ToDo / 参考ログ の全セクションが含まれること
+    - 参考ログに "[HH:MM:SS]" 形式のタイムスタンプが含まれること
+  json:
+    - MinutesOutput スキーマでバリデーションが通ること
+    - manifest の job_id が実行結果と一致すること
+    - manifest の generated_at が ISO8601 形式であること
+    - source_transcript が manifest に含まれること
+  performance:
+    - パイプライン全体が 5分以内に完了すること（10〜15分動画の目安）
+    - 再実行時にステージスキップが機能すること
+
+acceptance_criteria:
+  - expected_checks の全項目をパスすること
+  - 要約・議題・決定事項のいずれかが空でないこと（会議の内容が何らか抽出されていること）
+  - クラッシュ・例外終了がないこと
+  - minutes.md / minutes.json / manifest.json が空ファイルでないこと
+
+notes:
+  - 動画ファイルはリポジトリ外の評価用ディレクトリに保管すること（evaluation-plan.md §7.2）
+  - 評価結果は eval/results/CASE-01/eval.yaml に記録すること
+  - このファイルは実行前の評価観点を固定するもの。実行後の結果は eval/results/ に記録する
+  - 個人情報・機密情報を含む場合は匿名化要否を事前確認すること
