@@ -1,0 +1,80 @@
+case_id: CASE-01
+executed_at: "2026-04-24"
+executor: shimode
+job_id: job_20260424_002026_0063d0
+
+input:
+  video: /tmp/case01_dummy.mp4  # 無音 30 秒ダミー動画（C案）
+  title: 技術定例 スプリントレビュー
+  datetime: "2026-04-24T10:00:00"
+  participants: [田中, 佐藤, 鈴木]
+
+execution_notes: |
+  C案で実行。無音ダミー動画で ingest/preprocess/ASR を通し、
+  transcript.json をダミー会議テキストで上書き。
+  analysis.json も手動作成（extractor が 120 秒タイムアウトを超えたため）。
+  --job-id フラグで同一 job_id を再利用し、ASR + extractor をスキップ。
+
+checks:
+  pipeline:
+    all_stages_passed: true
+    stage_errors:
+      - stage: analysis.extractor
+        error: "Ollama 呼び出しが 3 回失敗: timed out（120 秒 × 3 回）"
+        workaround: "analysis.json を手動作成してスキップ"
+    log_entries_recorded: true
+    output_files_generated: true
+
+  markdown:
+    starts_with_h1_minutes: true       # "# 議事録" で始まる
+    has_all_sections: true             # 会議情報/要約/議題/決定事項/保留事項/ToDo/参考ログ 全8セクション
+    has_timestamp_format: true         # "[HH:MM:SS]" 形式を含む
+
+  json:
+    schema_valid: true                 # MinutesOutput スキーマでパース成功
+    job_id_matches: true               # manifest.job_id == 実行結果
+    generated_at_is_iso8601: true      # "2026-04-24T00:57:46.508108+00:00"
+    source_transcript_present: true    # manifest に source_transcript あり
+
+  output_not_empty:
+    minutes_md: true
+    minutes_json: true
+    manifest_json: true
+
+  content:
+    summary_not_empty: true
+    decisions_count: 2
+    todos_count: 2
+    pending_items_count: 1
+
+acceptance_criteria:
+  all_expected_checks_passed: false   # analysis.extractor がタイムアウト（要改善）
+  some_content_extracted: true        # 要約・決定事項・ToDo が抽出されている（手動 analysis.json）
+  no_crash: true
+  output_files_not_empty: true
+
+performance:
+  asr_duration_ms: 1419
+  analysis_extractor_result: timeout  # 120 秒 × 3 回 = タイムアウト
+  formatter_export_duration_ms: ~200  # 推定（ログ未計測）
+  total_pipeline_time: N/A            # extractor タイムアウトにより未計測
+
+issues:
+  - id: ISSUE-01
+    severity: high
+    description: "analysis.extractor の Ollama 呼び出しが 120 秒タイムアウトを超える"
+    details: |
+      gemma4:latest / qwen2.5-coder:7b ともに日本語 JSON 生成で 120〜240 秒かかる。
+      現在のタイムアウトは extractor/__init__.py に 120.0 秒ハードコード。
+    action_required: "タイムアウト値を 300〜600 秒に拡張するか、軽量モデルに切り替える"
+
+  - id: ISSUE-02
+    severity: low
+    description: "無音動画では Whisper が日本語ハルシネーションを生成する"
+    details: "「ご視聴ありがとうございました」が transcript に出力された。評価用は実発話音声が望ましい。"
+    action_required: "CASE-01 の実動画準備、または音声入りダミー動画に切り替え"
+
+next_steps:
+  - extractor のタイムアウトを設定可能にする（config.yaml の timeout_seconds を接続）
+  - より高速なモデルでの代替検討
+  - 実音声付きダミー動画を用意して Whisper の出力品質を改善
