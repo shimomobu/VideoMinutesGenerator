@@ -26,11 +26,12 @@ def extract(
     model: str,
     base_url: str,
     max_retries: int = 3,
+    timeout_seconds: int = 120,
 ) -> RawAnalysisJSON:
     last_error: Exception | None = None
     for _ in range(max_retries):
         try:
-            return _call_api(prompt_input.prompt, model, base_url)
+            return _call_api(prompt_input.prompt, model, base_url, timeout_seconds=timeout_seconds)
         except Exception as e:
             last_error = e
     raise LLMError(
@@ -38,7 +39,7 @@ def extract(
     ) from last_error
 
 
-def _call_api(prompt: str, model: str, base_url: str) -> str:
+def _call_api(prompt: str, model: str, base_url: str, timeout_seconds: int = 120) -> str:
     import httpx
 
     url = f"{base_url.rstrip('/')}/chat/completions"
@@ -51,7 +52,7 @@ def _call_api(prompt: str, model: str, base_url: str) -> str:
         "stream": False,
     }
     try:
-        response = httpx.post(url, json=payload, timeout=120.0)
+        response = httpx.post(url, json=payload, timeout=float(timeout_seconds))
         response.raise_for_status()
     except httpx.ConnectError as e:
         raise LLMError(

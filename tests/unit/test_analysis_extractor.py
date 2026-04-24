@@ -153,6 +153,12 @@ class TestExtractRetry:
             extract(prompt_input, model=_MODEL, base_url=_BASE_URL, max_retries=1)
         assert mock_call.call_count == 1
 
+    def test_timeout_seconds_passed_to_call_api(self, prompt_input, mocker):
+        """timeout_seconds が _call_api に渡されること"""
+        mock_call = mocker.patch("vmg.analysis.extractor._call_api", return_value=_SAMPLE_JSON)
+        extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=300)
+        assert mock_call.call_args.kwargs.get("timeout_seconds") == 300
+
 
 # ── _call_api: httpx による Ollama 呼び出し構造 ───────────────────
 
@@ -193,6 +199,12 @@ class TestCallApi:
         kwargs = mock_post.call_args[1]
         messages = kwargs["json"]["messages"]
         assert any("テストプロンプト" in str(m) for m in messages)
+
+    def test_passes_timeout_to_httpx(self, mocker):
+        """timeout_seconds が httpx.post の timeout 引数として渡されること"""
+        mock_post = self._make_httpx_mock(_SAMPLE_JSON, mocker)
+        _call_api("prompt", _MODEL, _BASE_URL, timeout_seconds=300)
+        assert mock_post.call_args.kwargs["timeout"] == 300.0
 
 
 # ── モジュール import の安全性（httpx は遅延importで保護） ─────────

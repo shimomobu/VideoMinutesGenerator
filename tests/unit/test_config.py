@@ -84,6 +84,11 @@ class TestLoadConfigNormal:
         config = load_config(valid_yaml)
         assert config.paths.log_dir == "logs"
 
+    def test_llm_timeout_seconds_loaded(self, valid_yaml):
+        """analysis.timeout_seconds が AppConfig.llm_timeout_seconds として読み込まれること"""
+        config = load_config(valid_yaml)
+        assert config.llm_timeout_seconds == 120
+
 
 # ── api_policy ───────────────────────────────────────────────────
 

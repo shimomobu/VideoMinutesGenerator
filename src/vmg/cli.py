@@ -48,6 +48,7 @@ def main(
             base_url=config.ollama_base_url,
             force=force,
             job_id=job_id,
+            timeout_seconds=config.llm_timeout_seconds,
         )
     except PipelineError as e:
         raise click.ClickException(f"パイプラインエラー [{e.stage}]: {e.cause}") from e
