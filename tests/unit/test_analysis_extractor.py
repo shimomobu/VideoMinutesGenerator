@@ -1,9 +1,10 @@
 """TASK-04-02: vmg.analysis.extractor 単体テスト（Ollama は httpx でモック化）"""
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 
-from vmg.analysis.extractor import LLMError, RawAnalysisJSON, _call_api, extract
+from vmg.analysis.extractor import LLMError, LLMTimeoutError, RawAnalysisJSON, _call_api, extract
 from vmg.analysis.input_builder import PromptInput
 
 _BASE_URL = "http://localhost:11434/v1"
@@ -221,6 +222,56 @@ class TestCallApi:
         result = _call_api("prompt", _MODEL, _BASE_URL)
         assert result.startswith("{")
         assert "```" not in result
+
+    def test_raises_llm_timeout_error_on_read_timeout(self, mocker):
+        """httpx.ReadTimeout が LLMTimeoutError に変換されること"""
+        mocker.patch("httpx.post", side_effect=httpx.ReadTimeout("timed out"))
+        with pytest.raises(LLMTimeoutError):
+            _call_api("prompt", _MODEL, _BASE_URL)
+
+
+# ── timeout 時のリトライ制御 ────────────────────────────────────────
+
+class TestExtractTimeoutBehavior:
+
+    def test_does_not_retry_on_read_timeout(self, prompt_input, mocker):
+        """_call_api が LLMTimeoutError を返した場合、max_retries に関わらずリトライしないこと"""
+        mock_call = mocker.patch(
+            "vmg.analysis.extractor._call_api",
+            side_effect=LLMTimeoutError("timed out"),
+        )
+        with pytest.raises(LLMTimeoutError):
+            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, max_retries=3)
+        assert mock_call.call_count == 1
+
+    def test_raises_llm_timeout_error_on_timeout(self, prompt_input, mocker):
+        """LLMTimeoutError は LLMError のサブクラスとして raise されること"""
+        mocker.patch(
+            "vmg.analysis.extractor._call_api",
+            side_effect=LLMTimeoutError("timed out"),
+        )
+        with pytest.raises(LLMError):
+            extract(prompt_input, model=_MODEL, base_url=_BASE_URL)
+
+    def test_still_retries_on_connect_error(self, prompt_input, mocker):
+        """ConnectError（Ollama 未起動等）は従来通りリトライすること"""
+        mock_call = mocker.patch(
+            "vmg.analysis.extractor._call_api",
+            side_effect=httpx.ConnectError("接続失敗"),
+        )
+        with pytest.raises(LLMError):
+            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, max_retries=2)
+        assert mock_call.call_count == 2
+
+    def test_still_retries_on_general_error(self, prompt_input, mocker):
+        """一般的な例外は従来通りリトライすること"""
+        mock_call = mocker.patch(
+            "vmg.analysis.extractor._call_api",
+            side_effect=Exception("一時エラー"),
+        )
+        with pytest.raises(LLMError):
+            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, max_retries=2)
+        assert mock_call.call_count == 2
 
 
 # ── モジュール import の安全性（httpx は遅延importで保護） ─────────

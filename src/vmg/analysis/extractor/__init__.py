@@ -11,6 +11,11 @@ class LLMError(Exception):
     pass
 
 
+class LLMTimeoutError(LLMError):
+    """Ollama 呼び出しがタイムアウトした場合の例外。リトライ対象外。"""
+    pass
+
+
 _SYSTEM_PROMPT = (
     "あなたは会議の文字起こしを分析するアシスタントです。"
     "以下の文字起こしを分析し、次のJSONスキーマで出力してください:\n"
@@ -32,6 +37,8 @@ def extract(
     for _ in range(max_retries):
         try:
             return _call_api(prompt_input.prompt, model, base_url, timeout_seconds=timeout_seconds)
+        except LLMTimeoutError:
+            raise
         except Exception as e:
             last_error = e
     raise LLMError(
@@ -54,6 +61,11 @@ def _call_api(prompt: str, model: str, base_url: str, timeout_seconds: int = 120
     try:
         response = httpx.post(url, json=payload, timeout=float(timeout_seconds))
         response.raise_for_status()
+    except httpx.TimeoutException as e:
+        raise LLMTimeoutError(
+            f"Ollama 呼び出しがタイムアウトしました: {timeout_seconds}秒 "
+            f"(base_url={base_url}, model={model})"
+        ) from e
     except httpx.ConnectError as e:
         raise LLMError(
             f"Ollama に接続できませんでした。"
