@@ -66,4 +66,15 @@ def _call_api(prompt: str, model: str, base_url: str, timeout_seconds: int = 120
             f"(base_url={base_url}, model={model})"
         ) from e
     data = response.json()
-    return data["choices"][0]["message"]["content"]
+    content = data["choices"][0]["message"]["content"]
+    return _strip_code_block(content)
+
+
+def _strip_code_block(text: str) -> str:
+    """```json ... ``` または ``` ... ``` の外枠だけを除去する"""
+    stripped = text.strip()
+    if stripped.startswith("```"):
+        first_newline = stripped.find("\n")
+        if first_newline != -1 and stripped.endswith("```"):
+            return stripped[first_newline + 1 : -3].strip()
+    return stripped

@@ -206,6 +206,22 @@ class TestCallApi:
         _call_api("prompt", _MODEL, _BASE_URL, timeout_seconds=300)
         assert mock_post.call_args.kwargs["timeout"] == 300.0
 
+    def test_strips_markdown_code_block(self, mocker):
+        """```json ... ``` 形式の応答からコードブロックが除去されること"""
+        wrapped = '```json\n' + _SAMPLE_JSON + '\n```'
+        self._make_httpx_mock(wrapped, mocker)
+        result = _call_api("prompt", _MODEL, _BASE_URL)
+        assert result.startswith("{")
+        assert "```" not in result
+
+    def test_strips_plain_code_block(self, mocker):
+        """``` ... ``` 形式（言語指定なし）でもコードブロックが除去されること"""
+        wrapped = '```\n' + _SAMPLE_JSON + '\n```'
+        self._make_httpx_mock(wrapped, mocker)
+        result = _call_api("prompt", _MODEL, _BASE_URL)
+        assert result.startswith("{")
+        assert "```" not in result
+
 
 # ── モジュール import の安全性（httpx は遅延importで保護） ─────────
 
