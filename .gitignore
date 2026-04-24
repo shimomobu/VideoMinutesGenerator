@@ -45,6 +45,12 @@ tests/fixtures/*.mov
 tests/fixtures/*.mkv
 tests/fixtures/*.wav
 
+# 評価用実データ動画（個人情報・機密情報を含む可能性があるためリポジトリ外管理）
+eval/samples/**/*.mp4
+eval/samples/**/*.mov
+eval/samples/**/*.mkv
+eval/samples/**/*.wav
+
 # macOS
 .DS_Store
 
