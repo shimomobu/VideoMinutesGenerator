@@ -11,70 +11,91 @@ input:
 
 execution_notes: |
   C案で実行。無音ダミー動画で ingest/preprocess/ASR を通し、
-  transcript.json をダミー会議テキストで上書き。
-  analysis.json も手動作成（extractor が 120 秒タイムアウトを超えたため）。
-  --job-id フラグで同一 job_id を再利用し、ASR + extractor をスキップ。
+  transcript.json をダミー会議テキスト（7セグメント）で上書き。
+  --job-id フラグで同一 job_id を再利用し ASR をスキップ。
+  analysis.extractor は今回 Ollama が正常応答し、validator 通過を確認。
+  Whisper は CUDA_VISIBLE_DEVICES="" で CPU 実行（Ollama と GPU を共有しないため）。
 
 checks:
   pipeline:
     all_stages_passed: true
-    stage_errors:
-      - stage: analysis.extractor
-        error: "Ollama 呼び出しが 3 回失敗: timed out（120 秒 × 3 回）"
-        workaround: "analysis.json を手動作成してスキップ"
-    log_entries_recorded: true
+    stage_errors: []
+    log_entries_recorded: true   # 全ステージのエントリ確認済み
     output_files_generated: true
 
   markdown:
-    starts_with_h1_minutes: true       # "# 議事録" で始まる
-    has_all_sections: true             # 会議情報/要約/議題/決定事項/保留事項/ToDo/参考ログ 全8セクション
-    has_timestamp_format: true         # "[HH:MM:SS]" 形式を含む
+    starts_with_h1_minutes: true      # "# 議事録" で始まる ✅
+    has_all_sections: true            # 全8セクション（会議情報/要約/議題/議論内容/決定事項/保留事項/ToDo/参考ログ）✅
+    has_timestamp_format: true        # "[HH:MM:SS]" 形式を参考ログに含む ✅
 
   json:
-    schema_valid: true                 # MinutesOutput スキーマでパース成功
-    job_id_matches: true               # manifest.job_id == 実行結果
-    generated_at_is_iso8601: true      # "2026-04-24T00:57:46.508108+00:00"
-    source_transcript_present: true    # manifest に source_transcript あり
+    schema_valid: true                # MinutesOutput スキーマでパース成功 ✅
+    job_id_matches: true              # manifest.job_id == job_20260424_002026_0063d0 ✅
+    generated_at_is_iso8601: true     # "2026-04-24T05:11:46.638819+00:00" ✅
+    source_transcript_present: true   # manifest に source_transcript あり ✅
 
   output_not_empty:
-    minutes_md: true
-    minutes_json: true
-    manifest_json: true
+    minutes_md: true    # 3178 bytes ✅
+    minutes_json: true  # 5492 bytes ✅
+    manifest_json: true # 232 bytes ✅
 
   content:
     summary_not_empty: true
     decisions_count: 2
-    todos_count: 2
+    todos_count: 1
     pending_items_count: 1
 
 acceptance_criteria:
-  all_expected_checks_passed: false   # analysis.extractor がタイムアウト（要改善）
-  some_content_extracted: true        # 要約・決定事項・ToDo が抽出されている（手動 analysis.json）
-  no_crash: true
-  output_files_not_empty: true
+  all_expected_checks_passed: true    # 全チェック項目パス ✅
+  some_content_extracted: true        # 要約・決定事項・ToDo が抽出されている ✅
+  no_crash: true                      # クラッシュ・例外終了なし ✅
+  output_files_not_empty: true        # 3ファイル全て非空 ✅
 
 performance:
-  asr_duration_ms: 1419
-  analysis_extractor_result: timeout  # 120 秒 × 3 回 = タイムアウト
-  formatter_export_duration_ms: ~200  # 推定（ログ未計測）
-  total_pipeline_time: N/A            # extractor タイムアウトにより未計測
+  asr_duration_ms: 1419               # Whisper（CPU実行）
+  analysis_extractor_duration_sec: ~297  # Ollama gemma4:latest（7セグメント）
+  formatter_export_duration_ms: ~200
+  total_pipeline_time_sec: ~310       # ASR スキップのため extractor が支配的
+
+extracted_content:
+  summary: "今週は認証モジュールのリファクタリング完了とAPIレスポンス速度の改善が確認された
+    スプリントレビューでした。次スプリントでは検索機能の実装を最優先で進めることが決定されました。"
+  decisions:
+    - "APIレスポンス速度改善（p50: 200ms→120ms）は完了事項として正式に記録する。"
+    - "ログ基盤の見直しは、優先度を下げるため次々回のスプリントで検討する。"
+  todos:
+    - task: "検索機能の実装を最優先で実施する。"
+      owner_candidate: "田中さん"
+      due_date_candidate: "来週金曜日"
+  pending_items:
+    - "データベースのマイグレーションに関する最終確認。本番環境への適用は来週火曜日に予定されている。"
 
 issues:
   - id: ISSUE-01
-    severity: high
-    description: "analysis.extractor の Ollama 呼び出しが 120 秒タイムアウトを超える"
+    severity: medium
+    description: "analysis.extractor の応答時間が 297 秒で 300 秒タイムアウトに近接"
     details: |
-      gemma4:latest / qwen2.5-coder:7b ともに日本語 JSON 生成で 120〜240 秒かかる。
-      現在のタイムアウトは extractor/__init__.py に 120.0 秒ハードコード。
-    action_required: "タイムアウト値を 300〜600 秒に拡張するか、軽量モデルに切り替える"
+      gemma4:latest が 7 セグメント transcript で ~297 秒かかる。
+      300 秒タイムアウト（config.yaml）ギリギリで、Ollama の状態次第で 500 エラーになる
+      （同日の別実行で 3 回連続 HTTP 500 を確認）。
+    action_required: "タイムアウト延長（600秒）、prompt短縮、またはより高速なモデルへの切り替えを検討"
 
   - id: ISSUE-02
     severity: low
     description: "無音動画では Whisper が日本語ハルシネーションを生成する"
-    details: "「ご視聴ありがとうございました」が transcript に出力された。評価用は実発話音声が望ましい。"
-    action_required: "CASE-01 の実動画準備、または音声入りダミー動画に切り替え"
+    details: "「ご視聴ありがとうございました」が transcript に出力された。C案では transcript を手動上書きして回避。"
+    action_required: "実音声付きダミー動画を用意するか、実動画で再評価する"
+
+  - id: ISSUE-03
+    severity: low
+    description: "Ollama と Whisper の GPU 競合（CUDA OOM）"
+    details: |
+      Ollama が GPU をほぼ占有している状態で Whisper がモデルロードに失敗する。
+      transcript.json が既存であれば Whisper は不要だが、WhisperLocalProvider の
+      __init__ で eager load するため CLI 起動時に OOM が発生する。
+    action_required: "WhisperLocalProvider の lazy load 化、または CUDA_VISIBLE_DEVICES=\"\" の運用手順化"
 
 next_steps:
-  - extractor のタイムアウトを設定可能にする（config.yaml の timeout_seconds を接続）
-  - より高速なモデルでの代替検討
-  - 実音声付きダミー動画を用意して Whisper の出力品質を改善
+  - timeout 改善: config.yaml の timeout_seconds を 600 に変更、または高速モデルへ切り替え
+  - Whisper lazy load 化の検討（WhisperLocalProvider.__init__ でのモデルロードを transcribe() に遅延）
+  - 実音声付きダミー動画での CASE-01 再評価

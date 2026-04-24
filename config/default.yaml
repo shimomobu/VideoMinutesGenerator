@@ -11,7 +11,7 @@ analysis:
   model: gemma4
   base_url: http://localhost:11434/v1
   max_retries: 3
-  timeout_seconds: 120
+  timeout_seconds: 300
 
 api_policy:
   send_audio: false         # 音声ファイルの外部送信を禁止
