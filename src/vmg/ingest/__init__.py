@@ -51,8 +51,9 @@ class JobMeta(BaseModel):
 def create_job(
     ingest_result: IngestResult,
     work_dir: str | Path = "data/work",
+    forced_job_id: str | None = None,
 ) -> JobMeta:
-    job_id = _generate_job_id()
+    job_id = forced_job_id if forced_job_id is not None else _generate_job_id()
     job_dir = Path(work_dir) / job_id
     job_dir.mkdir(parents=True, exist_ok=True)
 

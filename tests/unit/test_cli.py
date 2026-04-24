@@ -162,3 +162,16 @@ class TestCliNormalRun:
         assert isinstance(participants, list)
         assert "田中" in participants
         assert "佐藤" in participants
+
+
+class TestCliJobId:
+
+    def test_job_id_passed_to_pipeline_when_specified(self, runner, mock_config, mock_pipeline, mock_providers):
+        """--job-id を指定すると run_pipeline に job_id が渡ること"""
+        runner.invoke(main, _FULL_ARGS + ["--job-id", "job_fixed_001"])
+        assert mock_pipeline.call_args.kwargs["job_id"] == "job_fixed_001"
+
+    def test_job_id_is_none_when_not_specified(self, runner, mock_config, mock_pipeline, mock_providers):
+        """--job-id を指定しない場合、run_pipeline に job_id=None が渡ること"""
+        runner.invoke(main, _FULL_ARGS)
+        assert mock_pipeline.call_args.kwargs["job_id"] is None

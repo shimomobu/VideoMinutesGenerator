@@ -246,3 +246,21 @@ class TestJobMetaJson:
         raw = (work / meta.job_id / "job_meta.json").read_text()
         restored = JobMeta.model_validate_json(raw)
         assert restored.job_id == meta.job_id
+
+
+class TestForcedJobId:
+    def test_forced_job_id_is_used(self, ingest_result, tmp_path):
+        """forced_job_id を指定した場合、そのIDが job_id として使用されること"""
+        meta = create_job(ingest_result, work_dir=tmp_path / "work", forced_job_id="job_fixed_001")
+        assert meta.job_id == "job_fixed_001"
+
+    def test_forced_job_id_creates_correct_dir(self, ingest_result, tmp_path):
+        """forced_job_id を指定した場合、対応するディレクトリが作成されること"""
+        work = tmp_path / "work"
+        create_job(ingest_result, work_dir=work, forced_job_id="job_fixed_001")
+        assert (work / "job_fixed_001").is_dir()
+
+    def test_none_forced_job_id_generates_new_id(self, ingest_result, tmp_path):
+        """forced_job_id=None の場合は新しい job_id が自動生成されること"""
+        meta = create_job(ingest_result, work_dir=tmp_path / "work", forced_job_id=None)
+        assert meta.job_id.startswith("job_")

@@ -49,6 +49,7 @@ def run_pipeline(
     log_dir: str | Path = "logs",
     language: str = "ja",
     force: bool = False,
+    job_id: str | None = None,
 ) -> PipelineResult:
     video_path = Path(video_path)
     work_dir = Path(work_dir)
@@ -57,7 +58,7 @@ def run_pipeline(
     # --- Stage 1: ingest ---
     try:
         ingest_result = validate_video_file(video_path)
-        job_meta = create_job(ingest_result, work_dir)
+        job_meta = create_job(ingest_result, work_dir, forced_job_id=job_id)
     except Exception as e:
         raise PipelineError(stage="ingest", cause=e) from e
 

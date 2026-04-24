@@ -126,7 +126,7 @@ def _patch_all(mocker, tmp_path, analysis) -> dict:
     )
 
 
-def _run_pipeline(tmp_path, asr, formatter, *, force: bool = False):
+def _run_pipeline(tmp_path, asr, formatter, *, force: bool = False, job_id: str | None = None):
     return run_pipeline(
         video_path=tmp_path / "meeting.mp4",
         title="テスト会議",
@@ -140,6 +140,7 @@ def _run_pipeline(tmp_path, asr, formatter, *, force: bool = False):
         output_dir=tmp_path / "output",
         log_dir=tmp_path / "logs",
         force=force,
+        job_id=job_id,
     )
 
 
@@ -407,3 +408,43 @@ class TestPipelineSkip:
         _run_pipeline(tmp_path, mock_asr_provider, mock_formatter_provider)
 
         extract_mock.assert_called_once()
+
+
+class TestPipelineJobId:
+    """job_id 指定による再実行性のテスト"""
+
+    def _make_create_job_mock(self, mocker, tmp_path, job_id: str):
+        """create_job を指定した job_id を返すモックに差し替える"""
+        from vmg.ingest import JobMeta
+        return mocker.patch(
+            "vmg.pipeline.create_job",
+            return_value=JobMeta(
+                job_id=job_id,
+                executed_at="2026-04-24T10:00:00+00:00",
+                input_file_path=str(tmp_path / "meeting.mp4"),
+            ),
+        )
+
+    def test_specified_job_id_passed_to_create_job(
+        self, mocker, tmp_path, mock_asr_provider, mock_formatter_provider, sample_analysis
+    ):
+        """job_id を指定した場合、create_job に forced_job_id として渡されること"""
+        _patch_all(mocker, tmp_path, sample_analysis)
+        create_job_mock = self._make_create_job_mock(mocker, tmp_path, _JOB_ID)
+
+        _run_pipeline(tmp_path, mock_asr_provider, mock_formatter_provider, job_id="job_fixed_abc")
+
+        create_job_mock.assert_called_once()
+        assert create_job_mock.call_args.kwargs.get("forced_job_id") == "job_fixed_abc"
+
+    def test_unspecified_job_id_passes_none_to_create_job(
+        self, mocker, tmp_path, mock_asr_provider, mock_formatter_provider, sample_analysis
+    ):
+        """job_id を指定しない場合、create_job に forced_job_id=None が渡されること"""
+        _patch_all(mocker, tmp_path, sample_analysis)
+        create_job_mock = self._make_create_job_mock(mocker, tmp_path, _JOB_ID)
+
+        _run_pipeline(tmp_path, mock_asr_provider, mock_formatter_provider)
+
+        create_job_mock.assert_called_once()
+        assert create_job_mock.call_args.kwargs.get("forced_job_id") is None
