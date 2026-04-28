@@ -1,0 +1,116 @@
+case_id: CASE-05
+# 最新実行（run-2）: CASE-05b ホワイトノイズ入力（異常系評価）
+executed_at: "2026-04-28"
+
+# --- run-2 結果 ---
+run_2:
+  executed_at: "2026-04-28"
+  job_id: job_20260428_014346_0f1e57
+  variant: CASE-05b
+  purpose: "ホワイトノイズ入力時の Whisper ハルシネーション確認とパイプライン耐性評価"
+  execution_notes: |
+    ffmpeg で生成したホワイトノイズ 30 秒 mp4（256KB, amplitude=0.01）を入力として通常実行。
+    ASR（Whisper small, device=cpu）を実行。transcript を手動上書きしない。
+    CUDA_VISIBLE_DEVICES="" なしで実行。
+
+  checks:
+    pipeline:
+      all_stages_passed: true
+      stage_errors: []
+      output_files_generated: true   # minutes.md / minutes.json / manifest.json 生成 ✅
+    asr:
+      hallucination_detected: true   # 「ています」+ 「ん」×24 が生成（ISSUE-02 ノイズ版）
+      transcript_segments: 25
+      transcript_text: "ていますんんんんんんんんんんんんんんんんんんんんんんんんん"
+    content:
+      summary_not_empty: true        # LLM が「発話内容なし」と判断した旨を出力 ✅
+      summary_text: >
+        提供された文字起こしは、発話内容を伴わないフィラーサウンド（「ん」）および
+        無音区間に留まるため、具体的な議論内容を要約することはできませんでした。
+      decisions_empty: true          # 架空の decisions なし ✅
+      todos_empty: true              # 架空の todos なし ✅
+      pending_items_empty: true      # 架空の pending_items なし ✅
+      agenda_empty: true
+    markdown:
+      starts_with_h1_minutes: true
+      has_all_sections: true         # 全8セクション出力 ✅（内容は空）
+    json:
+      schema_valid: true
+      job_id_matches: true
+
+  acceptance_criteria:
+    no_crash: true                   # クラッシュなし ✅
+    no_fake_decisions: true          # 架空の decisions 不出力 ✅
+    no_fake_todos: true              # 架空の todos 不出力 ✅
+    hallucination_recorded: true     # ハルシネーション transcript を記録 ✅
+
+  performance:
+    asr_duration_ms: 86371           # ~86秒（CPU実行、ノイズ処理のため CASE-05a より長い）
+    analysis_extractor_duration_ms: 77099  # ~77秒
+    total_pipeline_time_sec: ~164
+
+  verdict: PASS
+  notes: |
+    acceptance_criteria は全項目クリア。
+    ハルシネーション形式は CASE-05a と異なる:
+      CASE-05a（無音）: 「ご視聴ありがとうございました」×2（意味のある文）
+      CASE-05b（ノイズ）: 「ん」×24（フィラー音の繰り返し）
+    どちらも LLM（gemma4）は「会議内容なし」と正しく判断し、架空 decisions/todos は出力せず。
+    LLM 側の耐性は両バリアントで良好。ISSUE-02 は ASR レイヤーの問題として記録。
+    ASR 処理時間は CASE-05a（23秒）より長い（86秒）。ノイズ処理の負荷によるもの。
+
+# --- run-1 結果 ---
+run_1:
+  executed_at: "2026-04-28"
+  job_id: job_20260428_013406_6a5c3b
+  variant: CASE-05a
+  purpose: "完全無音入力時の Whisper ハルシネーション確認とパイプライン耐性評価"
+  execution_notes: |
+    ffmpeg で生成した完全無音 30 秒 mp4（4.6KB）を入力として通常実行。
+    ASR（Whisper small, device=cpu）を実行。transcript を手動上書きしない。
+    CUDA_VISIBLE_DEVICES="" なしで実行。
+
+  checks:
+    pipeline:
+      all_stages_passed: true
+      stage_errors: []
+      output_files_generated: true   # minutes.md / minutes.json / manifest.json 生成 ✅
+    asr:
+      hallucination_detected: true   # 「ご視聴ありがとうございました」×2 が生成（ISSUE-02 再現）
+      transcript_segments: 2
+      transcript_text: "ご視聴ありがとうございましたご視聴ありがとうございました"
+    content:
+      summary_not_empty: true        # LLM が「会議内容なし」と判断した旨を出力 ✅
+      summary_text: >
+        本文字起こしは、会議の内容ではなく、別コンテンツの視聴終了時の挨拶のみを記録しているため、
+        具体的な会議のサマリーを抽出できませんでした。
+      decisions_empty: true          # 架空の decisions なし ✅
+      todos_empty: true              # 架空の todos なし ✅
+      pending_items_empty: true      # 架空の pending_items なし ✅
+      agenda_empty: true
+    markdown:
+      starts_with_h1_minutes: true
+      has_all_sections: true         # 全8セクション出力 ✅（内容は空）
+    json:
+      schema_valid: true
+      job_id_matches: true
+
+  acceptance_criteria:
+    no_crash: true                   # クラッシュなし ✅
+    no_fake_decisions: true          # 架空の decisions 不出力 ✅
+    no_fake_todos: true              # 架空の todos 不出力 ✅
+    hallucination_recorded: true     # ハルシネーション transcript を記録 ✅
+
+  performance:
+    asr_duration_ms: 23443           # ~23秒（CPU実行）
+    analysis_extractor_duration_ms: 71095  # ~71秒
+    total_pipeline_time_sec: ~95
+
+  verdict: PASS
+  notes: |
+    acceptance_criteria は全項目クリア。
+    ただし ISSUE-02（Whisper ハルシネーション）が再現:
+      無音入力に対して「ご視聴ありがとうございました」×2 が生成された。
+    LLM（gemma4）はハルシネーション transcript を正しく「会議内容なし」と判断し、
+    架空の decisions / todos は出力しなかった。LLM 側の耐性は良好。
+    ISSUE-02 は ASR レイヤーの問題であり、対策は別タスクで検討。
