@@ -68,7 +68,7 @@ input_generation:
       description: "台本の各発話テキストを個別 wav に変換する"
       command_template: |
         echo "{text}" | open_jtalk \
-          -x /var/lib/mecab/dic/naist-jdic \
+          -x /var/lib/mecab/dic/open-jtalk/naist-jdic \
           -m /usr/share/hts-voice/nitech-jp-atr503-m001/nitech_jp_atr503_m001.htsvoice \
           -r 1.0 -fm 200 -jf 0.5 \
           -ow /tmp/case03_line{n}.wav
