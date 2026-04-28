@@ -1,0 +1,120 @@
+case_id: CASE-02
+title: 短尺実音声（マイク録音・標準品質）
+purpose: >
+  人間の読み上げ音声を使って ASR→LLM→minutes 生成品質を評価する。
+  CASE-03（open-jtalk合成音声）と同一台本を用いることで、
+  合成音声と実音声の ASR 認識精度差・LLM 抽出精度差を直接比較する。
+  長尺業務音声（25〜30分）の評価は run-2 以降で実施予定。
+
+meeting_type: 技術打ち合わせ（スプリント確認）
+participants_count:
+  min: 1   # run-1: 1名読み上げ
+  max: 2   # run-2以降: 2名役読み or 業務側提供音声
+duration_minutes:
+  min: 1
+  max: 3
+audio_quality: real_mic  # real_mic（PCマイク or スマホ録音）
+
+# CASE-01 / CASE-03 / CASE-05 との違い:
+# CASE-01: transcript を手動上書きして ASR をスキップ（パイプライン動作確認）
+# CASE-03: open-jtalk 合成音声で ASR→LLM を評価（音声品質は低め）
+# CASE-02: 人間の読み上げ音声で同一台本の ASR→LLM を評価（品質比較の本命）
+# CASE-04: 雑音・エコー入り実音声（低品質ケース、将来定義）
+# CASE-05: 無音・ノイズ異常系（ffmpeg生成）
+
+# --- 台本（CASE-03と同一） ---
+script:
+  participants:
+    A: 田中
+    B: 佐藤
+  note: |
+    run-1 では1名が両役を読み上げる。
+    run-2 以降で2名役読み or 業務側提供音声を評価する。
+  lines:
+    - speaker: A
+      text: "お疲れ様です。先週のログイン画面のバグですが、昨日修正が完了しました。"
+    - speaker: B
+      text: "確認しました。本番反映は今週中に進めましょう。"
+    - speaker: A
+      text: "了解です。次のスプリントについてですが、検索機能の実装を田中が担当する予定です。"
+    - speaker: B
+      text: "来週金曜日までに基本実装をお願いできますか。"
+    - speaker: A
+      text: "承知しました。あと、外部APIの仕様書がまだ届いていないので、その点は引き続き確認中です。"
+    - speaker: B
+      text: "わかりました。届き次第共有してください。以上でよろしいでしょうか。"
+    - speaker: A
+      text: "はい。それでは以上です。"
+
+# --- 期待結果（CASE-03と同一） ---
+expected:
+  summary: >
+    ログイン画面のバグ修正が完了し本番反映の方針を確認した。
+    次スプリントでは田中が検索機能の実装を担当する。
+    外部API仕様書の到着待ちが保留事項として残った。
+  decisions:
+    - "ログイン画面のバグ修正が完了した"
+    - "本番反映を今週中に行う"
+  todos:
+    - task: "検索機能の基本実装"
+      owner_candidate: "田中"
+      due_date_candidate: "来週金曜日"
+  pending_items:
+    - "外部APIの仕様書の確認待ち"
+
+# --- 録音手順 ---
+input_generation:
+  method: real_mic
+  options:
+    - name: PCマイク（ffmpeg録音）
+      command: |
+        # 利用可能なマイクデバイスを確認
+        arecord -l
+        # 録音（例: default デバイスで最大180秒）
+        ffmpeg -f alsa -i default -t 180 /tmp/case02_mic.wav
+        # mp4 に変換
+        ffmpeg -i /tmp/case02_mic.wav -c:a aac /tmp/case02_mic.mp4 -y
+    - name: スマホ録音 → PC転送 → mp4変換
+      command: |
+        # スマホで録音後、PC に転送（USB / AirDrop 等）
+        # wav または m4a を mp4 に変換
+        ffmpeg -i /path/to/recorded.m4a -c:a aac /tmp/case02_mic.mp4 -y
+  notes:
+    - 静かな室内環境で録音すること（背景ノイズを最小化）
+    - 台本を手元に用意し、自然なスピードで読み上げる
+    - 音声ファイル（wav / mp4）はリポジトリにコミットしない（.gitignore 設定済み）
+    - 実行時の --input には /tmp/case02_mic.mp4 などを直接指定する
+
+# --- 評価観点 ---
+expected_checks:
+  asr:
+    - CASE-03（合成音声）より ASR 誤認識が少ないこと
+    - "「ログイン画面」「スプリント」「実装」「API仕様書」が正しく文字起こしされること"
+    - ハルシネーションが発生しないこと
+  content:
+    - decisions に「バグ修正完了」「本番反映」相当の内容が含まれること
+    - "# CASE-03 では「バグ修正完了」が漏れた。実音声では改善するかを確認"
+    - todos に「検索機能」「田中」「来週金曜日」相当の内容が含まれること
+    - pending_items に「外部API」「仕様書」相当の内容が含まれること
+    - summary が会議の概要を概ね反映していること
+    - 架空の decisions / todos が生成されないこと
+  pipeline:
+    - パイプラインがクラッシュしないこと
+    - 全8セクションが出力されること
+  performance:
+    - パイプライン全体が 10 分以内に完了すること（1〜3 分音声の目安）
+
+acceptance_criteria:
+  - パイプラインがクラッシュ・例外終了しないこと
+  - decisions が1件以上抽出されること
+  - todos が1件以上抽出されること（owner_candidate または due_date_candidate のいずれかが含まれること）
+  - pending_items が1件以上抽出されること
+  - summary が空でないこと
+  - 架空の decisions / todos が生成されないこと
+
+notes:
+  - 音声/動画ファイルはリポジトリにコミットしない（.gitignore 設定済み）
+  - run-1 は1名読み上げ。run-2 以降で2名役読み or 業務側提供音声を評価
+  - 評価結果は eval/results/CASE-02/eval.yaml に記録すること（実行後）
+  - LLM の非決定論的な出力により decisions/todos の文言は完全一致しなくてよい
+  - CASE-03 との比較: 同一台本のため ASR・LLM の品質差を直接比較できる
