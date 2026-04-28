@@ -9,6 +9,7 @@ from vmg.analysis.input_builder import PromptInput
 
 _BASE_URL = "http://localhost:11434/v1"
 _MODEL = "gemma4"
+_TIMEOUT = 900
 
 
 # ── フィクスチャ ──────────────────────────────────────────────────
@@ -45,41 +46,41 @@ class TestLLMError:
 class TestExtractNormal:
     def test_returns_str(self, prompt_input, mocker):
         mocker.patch("vmg.analysis.extractor._call_api", return_value=_SAMPLE_JSON)
-        result = extract(prompt_input, model=_MODEL, base_url=_BASE_URL)
+        result = extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT)
         assert isinstance(result, str)
 
     def test_returns_api_response(self, prompt_input, mocker):
         mocker.patch("vmg.analysis.extractor._call_api", return_value=_SAMPLE_JSON)
-        result = extract(prompt_input, model=_MODEL, base_url=_BASE_URL)
+        result = extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT)
         assert result == _SAMPLE_JSON
 
     def test_calls_internal_api(self, prompt_input, mocker):
         mock_call = mocker.patch("vmg.analysis.extractor._call_api", return_value=_SAMPLE_JSON)
-        extract(prompt_input, model=_MODEL, base_url=_BASE_URL)
+        extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT)
         mock_call.assert_called_once()
 
     def test_passes_prompt_to_api(self, prompt_input, mocker):
         mock_call = mocker.patch("vmg.analysis.extractor._call_api", return_value=_SAMPLE_JSON)
-        extract(prompt_input, model=_MODEL, base_url=_BASE_URL)
+        extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT)
         args = mock_call.call_args[0]
         assert prompt_input.prompt == args[0]
 
     def test_passes_model_to_api(self, prompt_input, mocker):
         mock_call = mocker.patch("vmg.analysis.extractor._call_api", return_value=_SAMPLE_JSON)
-        extract(prompt_input, model="custom-model", base_url=_BASE_URL)
+        extract(prompt_input, model="custom-model", base_url=_BASE_URL, timeout_seconds=_TIMEOUT)
         args = mock_call.call_args[0]
         assert "custom-model" == args[1]
 
     def test_passes_base_url_to_api(self, prompt_input, mocker):
         mock_call = mocker.patch("vmg.analysis.extractor._call_api", return_value=_SAMPLE_JSON)
-        extract(prompt_input, model=_MODEL, base_url="http://custom:11434/v1")
+        extract(prompt_input, model=_MODEL, base_url="http://custom:11434/v1", timeout_seconds=_TIMEOUT)
         args = mock_call.call_args[0]
         assert "http://custom:11434/v1" == args[2]
 
     def test_raw_json_returned_unmodified(self, prompt_input, mocker):
         raw = '{"foo": "bar", "baz": 42}'
         mocker.patch("vmg.analysis.extractor._call_api", return_value=raw)
-        result = extract(prompt_input, model=_MODEL, base_url=_BASE_URL)
+        result = extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT)
         assert result == raw
 
 
@@ -91,7 +92,7 @@ class TestExtractRetry:
             "vmg.analysis.extractor._call_api",
             side_effect=[Exception("一時エラー"), _SAMPLE_JSON],
         )
-        result = extract(prompt_input, model=_MODEL, base_url=_BASE_URL)
+        result = extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT)
         assert result == _SAMPLE_JSON
         assert mock_call.call_count == 2
 
@@ -100,7 +101,7 @@ class TestExtractRetry:
             "vmg.analysis.extractor._call_api",
             side_effect=[Exception("e1"), Exception("e2"), _SAMPLE_JSON],
         )
-        result = extract(prompt_input, model=_MODEL, base_url=_BASE_URL)
+        result = extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT)
         assert result == _SAMPLE_JSON
 
     def test_raises_llm_error_after_three_failures(self, prompt_input, mocker):
@@ -109,7 +110,7 @@ class TestExtractRetry:
             side_effect=[Exception("e1"), Exception("e2"), Exception("e3")],
         )
         with pytest.raises(LLMError):
-            extract(prompt_input, model=_MODEL, base_url=_BASE_URL)
+            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT)
 
     def test_max_retry_count_is_three(self, prompt_input, mocker):
         mock_call = mocker.patch(
@@ -117,7 +118,7 @@ class TestExtractRetry:
             side_effect=Exception("常に失敗"),
         )
         with pytest.raises(LLMError):
-            extract(prompt_input, model=_MODEL, base_url=_BASE_URL)
+            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT)
         assert mock_call.call_count == 3
 
     def test_llm_error_not_original_exception(self, prompt_input, mocker):
@@ -126,7 +127,7 @@ class TestExtractRetry:
             side_effect=Exception("raw error"),
         )
         with pytest.raises(LLMError):
-            extract(prompt_input, model=_MODEL, base_url=_BASE_URL)
+            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT)
 
     def test_llm_error_message_is_informative(self, prompt_input, mocker):
         mocker.patch(
@@ -134,7 +135,7 @@ class TestExtractRetry:
             side_effect=Exception("network error"),
         )
         with pytest.raises(LLMError, match=r".+"):
-            extract(prompt_input, model=_MODEL, base_url=_BASE_URL)
+            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT)
 
     def test_custom_max_retries_two(self, prompt_input, mocker):
         mock_call = mocker.patch(
@@ -142,7 +143,7 @@ class TestExtractRetry:
             side_effect=Exception("失敗"),
         )
         with pytest.raises(LLMError):
-            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, max_retries=2)
+            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT, max_retries=2)
         assert mock_call.call_count == 2
 
     def test_custom_max_retries_one(self, prompt_input, mocker):
@@ -151,7 +152,7 @@ class TestExtractRetry:
             side_effect=Exception("失敗"),
         )
         with pytest.raises(LLMError):
-            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, max_retries=1)
+            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT, max_retries=1)
         assert mock_call.call_count == 1
 
     def test_timeout_seconds_passed_to_call_api(self, prompt_input, mocker):
@@ -159,12 +160,6 @@ class TestExtractRetry:
         mock_call = mocker.patch("vmg.analysis.extractor._call_api", return_value=_SAMPLE_JSON)
         extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=300)
         assert mock_call.call_args.kwargs.get("timeout_seconds") == 300
-
-    def test_default_timeout_seconds_is_900(self, prompt_input, mocker):
-        """timeout_seconds 未指定時は _call_api に timeout_seconds=900 が渡ること"""
-        mock_call = mocker.patch("vmg.analysis.extractor._call_api", return_value=_SAMPLE_JSON)
-        extract(prompt_input, model=_MODEL, base_url=_BASE_URL)
-        assert mock_call.call_args.kwargs.get("timeout_seconds") == 900
 
 
 # ── _call_api: httpx による Ollama 呼び出し構造 ───────────────────
@@ -180,29 +175,29 @@ class TestCallApi:
 
     def test_returns_response_text(self, mocker):
         self._make_httpx_mock(_SAMPLE_JSON, mocker)
-        result = _call_api("テストプロンプト", _MODEL, _BASE_URL)
+        result = _call_api("テストプロンプト", _MODEL, _BASE_URL, timeout_seconds=_TIMEOUT)
         assert result == _SAMPLE_JSON
 
     def test_calls_httpx_post(self, mocker):
         mock_post = self._make_httpx_mock(_SAMPLE_JSON, mocker)
-        _call_api("prompt", _MODEL, _BASE_URL)
+        _call_api("prompt", _MODEL, _BASE_URL, timeout_seconds=_TIMEOUT)
         mock_post.assert_called_once()
 
     def test_posts_to_correct_url(self, mocker):
         mock_post = self._make_httpx_mock(_SAMPLE_JSON, mocker)
-        _call_api("prompt", _MODEL, _BASE_URL)
+        _call_api("prompt", _MODEL, _BASE_URL, timeout_seconds=_TIMEOUT)
         args = mock_post.call_args[0]
         assert args[0] == f"{_BASE_URL}/chat/completions"
 
     def test_passes_model_in_payload(self, mocker):
         mock_post = self._make_httpx_mock(_SAMPLE_JSON, mocker)
-        _call_api("prompt", "custom-model", _BASE_URL)
+        _call_api("prompt", "custom-model", _BASE_URL, timeout_seconds=_TIMEOUT)
         kwargs = mock_post.call_args[1]
         assert kwargs["json"]["model"] == "custom-model"
 
     def test_passes_user_prompt_in_messages(self, mocker):
         mock_post = self._make_httpx_mock(_SAMPLE_JSON, mocker)
-        _call_api("テストプロンプト", _MODEL, _BASE_URL)
+        _call_api("テストプロンプト", _MODEL, _BASE_URL, timeout_seconds=_TIMEOUT)
         kwargs = mock_post.call_args[1]
         messages = kwargs["json"]["messages"]
         assert any("テストプロンプト" in str(m) for m in messages)
@@ -213,17 +208,11 @@ class TestCallApi:
         _call_api("prompt", _MODEL, _BASE_URL, timeout_seconds=300)
         assert mock_post.call_args.kwargs["timeout"] == 300.0
 
-    def test_default_timeout_seconds_is_900(self, mocker):
-        """timeout_seconds 未指定時は httpx.post に timeout=900.0 が渡ること"""
-        mock_post = self._make_httpx_mock(_SAMPLE_JSON, mocker)
-        _call_api("prompt", _MODEL, _BASE_URL)
-        assert mock_post.call_args.kwargs["timeout"] == 900.0
-
     def test_strips_markdown_code_block(self, mocker):
         """```json ... ``` 形式の応答からコードブロックが除去されること"""
         wrapped = '```json\n' + _SAMPLE_JSON + '\n```'
         self._make_httpx_mock(wrapped, mocker)
-        result = _call_api("prompt", _MODEL, _BASE_URL)
+        result = _call_api("prompt", _MODEL, _BASE_URL, timeout_seconds=_TIMEOUT)
         assert result.startswith("{")
         assert "```" not in result
 
@@ -231,7 +220,7 @@ class TestCallApi:
         """``` ... ``` 形式（言語指定なし）でもコードブロックが除去されること"""
         wrapped = '```\n' + _SAMPLE_JSON + '\n```'
         self._make_httpx_mock(wrapped, mocker)
-        result = _call_api("prompt", _MODEL, _BASE_URL)
+        result = _call_api("prompt", _MODEL, _BASE_URL, timeout_seconds=_TIMEOUT)
         assert result.startswith("{")
         assert "```" not in result
 
@@ -239,7 +228,7 @@ class TestCallApi:
         """httpx.ReadTimeout が LLMTimeoutError に変換されること"""
         mocker.patch("httpx.post", side_effect=httpx.ReadTimeout("timed out"))
         with pytest.raises(LLMTimeoutError):
-            _call_api("prompt", _MODEL, _BASE_URL)
+            _call_api("prompt", _MODEL, _BASE_URL, timeout_seconds=_TIMEOUT)
 
 
 # ── timeout 時のリトライ制御 ────────────────────────────────────────
@@ -253,7 +242,7 @@ class TestExtractTimeoutBehavior:
             side_effect=LLMTimeoutError("timed out"),
         )
         with pytest.raises(LLMTimeoutError):
-            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, max_retries=3)
+            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT, max_retries=3)
         assert mock_call.call_count == 1
 
     def test_raises_llm_timeout_error_on_timeout(self, prompt_input, mocker):
@@ -263,7 +252,7 @@ class TestExtractTimeoutBehavior:
             side_effect=LLMTimeoutError("timed out"),
         )
         with pytest.raises(LLMError):
-            extract(prompt_input, model=_MODEL, base_url=_BASE_URL)
+            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT)
 
     def test_still_retries_on_connect_error(self, prompt_input, mocker):
         """ConnectError（Ollama 未起動等）は従来通りリトライすること"""
@@ -272,7 +261,7 @@ class TestExtractTimeoutBehavior:
             side_effect=httpx.ConnectError("接続失敗"),
         )
         with pytest.raises(LLMError):
-            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, max_retries=2)
+            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT, max_retries=2)
         assert mock_call.call_count == 2
 
     def test_still_retries_on_general_error(self, prompt_input, mocker):
@@ -282,7 +271,7 @@ class TestExtractTimeoutBehavior:
             side_effect=Exception("一時エラー"),
         )
         with pytest.raises(LLMError):
-            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, max_retries=2)
+            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT, max_retries=2)
         assert mock_call.call_count == 2
 
 
@@ -295,12 +284,12 @@ class TestExtractLogging:
         mocker.patch("vmg.analysis.extractor._call_api", return_value=_SAMPLE_JSON)
         logger = MagicMock()
 
-        extract(prompt_input, model=_MODEL, base_url=_BASE_URL, logger=logger)
+        extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT, logger=logger)
 
         logger.info.assert_called_once()
         extra = logger.info.call_args.kwargs["extra"]
         assert extra["model"] == _MODEL
-        assert extra["timeout_seconds"] == 900
+        assert extra["timeout_seconds"] == _TIMEOUT
         assert extra["input_chars"] == len(prompt_input.prompt)
         assert extra["output_chars"] == len(_SAMPLE_JSON)
         assert "elapsed_ms" in extra
@@ -312,7 +301,7 @@ class TestExtractLogging:
         logger = MagicMock()
 
         with pytest.raises(LLMTimeoutError):
-            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, logger=logger)
+            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT, logger=logger)
 
         logger.error.assert_called_once()
         extra = logger.error.call_args.kwargs["extra"]
@@ -327,7 +316,7 @@ class TestExtractLogging:
         )
         logger = MagicMock()
 
-        extract(prompt_input, model=_MODEL, base_url=_BASE_URL, logger=logger, max_retries=3)
+        extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT, logger=logger, max_retries=3)
 
         assert logger.warning.call_count >= 1
         extra = logger.warning.call_args_list[0].kwargs["extra"]
@@ -339,7 +328,7 @@ class TestExtractLogging:
         """logger=None（デフォルト）でもクラッシュしないこと"""
         mocker.patch("vmg.analysis.extractor._call_api", return_value=_SAMPLE_JSON)
 
-        result = extract(prompt_input, model=_MODEL, base_url=_BASE_URL)
+        result = extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=_TIMEOUT)
 
         assert result == _SAMPLE_JSON
 

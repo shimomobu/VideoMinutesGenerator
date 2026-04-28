@@ -133,6 +133,7 @@ def e2e_ctx(fixture_video, tmp_path_factory) -> E2EContext:
         work_dir=tmp / "work",
         output_dir=tmp / "output",
         log_dir=tmp / "logs",
+        timeout_seconds=900,
     )
     return E2EContext(
         job_id=result.job_id,

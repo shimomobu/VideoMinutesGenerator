@@ -94,6 +94,14 @@ class TestLoadConfigNormal:
         config = load_config(valid_yaml)
         assert config.llm_max_retries == 3
 
+    def test_default_yaml_timeout_seconds_is_900(self):
+        """config/default.yaml の analysis.timeout_seconds が 900 であること（設定値の正規値）"""
+        from pathlib import Path
+        import yaml as _yaml
+        yaml_path = Path(__file__).parents[2] / "config" / "default.yaml"
+        data = _yaml.safe_load(yaml_path.read_text(encoding="utf-8"))
+        assert data["analysis"]["timeout_seconds"] == 900
+
 
 # ── api_policy ───────────────────────────────────────────────────
 

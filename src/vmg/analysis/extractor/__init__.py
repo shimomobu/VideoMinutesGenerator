@@ -36,8 +36,8 @@ def extract(
     prompt_input: PromptInput,
     model: str,
     base_url: str,
+    timeout_seconds: int,
     max_retries: int = 3,
-    timeout_seconds: int = 900,
     logger: "StructuredLogger | None" = None,
 ) -> RawAnalysisJSON:
     last_error: Exception | None = None
@@ -97,7 +97,7 @@ def extract(
     ) from last_error
 
 
-def _call_api(prompt: str, model: str, base_url: str, timeout_seconds: int = 900) -> str:
+def _call_api(prompt: str, model: str, base_url: str, timeout_seconds: int) -> str:
     import httpx
 
     url = f"{base_url.rstrip('/')}/chat/completions"

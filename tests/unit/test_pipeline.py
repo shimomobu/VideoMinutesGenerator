@@ -141,6 +141,7 @@ def _run_pipeline(tmp_path, asr, formatter, *, force: bool = False, job_id: str 
         log_dir=tmp_path / "logs",
         force=force,
         job_id=job_id,
+        timeout_seconds=900,
     )
 
 
@@ -469,6 +470,7 @@ class TestPipelineMaxRetries:
             work_dir=tmp_path / "work",
             output_dir=tmp_path / "output",
             log_dir=tmp_path / "logs",
+            timeout_seconds=900,
             max_retries=5,
         )
 
@@ -485,13 +487,25 @@ class TestPipelineMaxRetries:
 
         assert extract_mock.call_args.kwargs.get("max_retries") == 3
 
-    def test_default_timeout_seconds_is_900(
+    def test_timeout_seconds_passed_to_extract(
         self, mocker, tmp_path, mock_asr_provider, mock_formatter_provider, sample_analysis
     ):
-        """timeout_seconds 未指定時は extract に timeout_seconds=900 が渡ること"""
+        """run_pipeline に timeout_seconds=300 を渡すと extract に timeout_seconds=300 が渡ること"""
         _patch_all(mocker, tmp_path, sample_analysis)
         extract_mock = mocker.patch("vmg.pipeline.extract", return_value=_RAW_ANALYSIS)
 
-        _run_pipeline(tmp_path, mock_asr_provider, mock_formatter_provider)
+        run_pipeline(
+            video_path=tmp_path / "meeting.mp4",
+            title="テスト会議",
+            datetime_str="2026-04-23T10:00:00",
+            participants=["田中"],
+            asr_provider=mock_asr_provider,
+            formatter_provider=mock_formatter_provider,
+            work_dir=tmp_path / "work",
+            output_dir=tmp_path / "output",
+            log_dir=tmp_path / "logs",
+            timeout_seconds=300,
+            max_retries=3,
+        )
 
-        assert extract_mock.call_args.kwargs.get("timeout_seconds") == 900
+        assert extract_mock.call_args.kwargs.get("timeout_seconds") == 300

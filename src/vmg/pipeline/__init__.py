@@ -43,6 +43,7 @@ def run_pipeline(
     participants: list[str],
     asr_provider: ASRProvider,
     formatter_provider: FormatterProvider,
+    timeout_seconds: int,
     model: str = "gemma4",
     base_url: str = "http://localhost:11434/v1",
     work_dir: str | Path = "data/work",
@@ -51,7 +52,6 @@ def run_pipeline(
     language: str = "ja",
     force: bool = False,
     job_id: str | None = None,
-    timeout_seconds: int = 900,
     max_retries: int = 3,
 ) -> PipelineResult:
     video_path = Path(video_path)
@@ -150,7 +150,7 @@ def _execute_analysis(
     base_url: str,
     job_id: str,
     work_dir: Path,
-    timeout_seconds: int = 900,
+    timeout_seconds: int,
     max_retries: int = 3,
 ) -> AnalysisResult:
     chunks = _run(logger, "analysis.input_builder", build_prompt, transcript)
