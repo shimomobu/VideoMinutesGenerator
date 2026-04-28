@@ -89,6 +89,11 @@ class TestLoadConfigNormal:
         config = load_config(valid_yaml)
         assert config.llm_timeout_seconds == 120
 
+    def test_llm_max_retries_loaded(self, valid_yaml):
+        """analysis.max_retries が AppConfig.llm_max_retries として読み込まれること"""
+        config = load_config(valid_yaml)
+        assert config.llm_max_retries == 3
+
 
 # ── api_policy ───────────────────────────────────────────────────
 

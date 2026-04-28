@@ -49,6 +49,7 @@ def main(
             force=force,
             job_id=job_id,
             timeout_seconds=config.llm_timeout_seconds,
+            max_retries=config.llm_max_retries,
         )
     except PipelineError as e:
         raise click.ClickException(f"パイプラインエラー [{e.stage}]: {e.cause}") from e

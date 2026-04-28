@@ -35,6 +35,7 @@ class AppConfig(BaseModel):
     llm_model: str
     ollama_base_url: str
     llm_timeout_seconds: int
+    llm_max_retries: int
     whisper_model: str
     api_policy: ApiPolicyConfig
     diarization: DiarizationConfig
@@ -57,6 +58,7 @@ def load_config(config_path: str | Path = _DEFAULT_CONFIG_PATH) -> AppConfig:
             llm_model=raw["analysis"]["model"],
             ollama_base_url=raw["analysis"]["base_url"],
             llm_timeout_seconds=int(raw["analysis"]["timeout_seconds"]),
+            llm_max_retries=int(raw["analysis"]["max_retries"]),
             whisper_model=raw["asr"]["model_size"],
             api_policy=ApiPolicyConfig(**raw["api_policy"]),
             diarization=DiarizationConfig(**raw["diarization"]),

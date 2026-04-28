@@ -161,6 +161,12 @@ class TestCliNormalRun:
         runner.invoke(main, _FULL_ARGS)
         assert mock_pipeline.call_args.kwargs["timeout_seconds"] == 300
 
+    def test_max_retries_passed_to_pipeline(self, runner, mock_config, mock_pipeline, mock_providers):
+        """config の llm_max_retries が run_pipeline に max_retries として渡ること"""
+        mock_config.return_value.llm_max_retries = 5
+        runner.invoke(main, _FULL_ARGS)
+        assert mock_pipeline.call_args.kwargs["max_retries"] == 5
+
     def test_participants_passed_as_list(self, runner, mock_config, mock_pipeline, mock_providers):
         """--participants は list[str] として run_pipeline に渡ること"""
         runner.invoke(main, _FULL_ARGS)
