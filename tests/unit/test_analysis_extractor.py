@@ -160,6 +160,12 @@ class TestExtractRetry:
         extract(prompt_input, model=_MODEL, base_url=_BASE_URL, timeout_seconds=300)
         assert mock_call.call_args.kwargs.get("timeout_seconds") == 300
 
+    def test_default_timeout_seconds_is_900(self, prompt_input, mocker):
+        """timeout_seconds 未指定時は _call_api に timeout_seconds=900 が渡ること"""
+        mock_call = mocker.patch("vmg.analysis.extractor._call_api", return_value=_SAMPLE_JSON)
+        extract(prompt_input, model=_MODEL, base_url=_BASE_URL)
+        assert mock_call.call_args.kwargs.get("timeout_seconds") == 900
+
 
 # ── _call_api: httpx による Ollama 呼び出し構造 ───────────────────
 
@@ -206,6 +212,12 @@ class TestCallApi:
         mock_post = self._make_httpx_mock(_SAMPLE_JSON, mocker)
         _call_api("prompt", _MODEL, _BASE_URL, timeout_seconds=300)
         assert mock_post.call_args.kwargs["timeout"] == 300.0
+
+    def test_default_timeout_seconds_is_900(self, mocker):
+        """timeout_seconds 未指定時は httpx.post に timeout=900.0 が渡ること"""
+        mock_post = self._make_httpx_mock(_SAMPLE_JSON, mocker)
+        _call_api("prompt", _MODEL, _BASE_URL)
+        assert mock_post.call_args.kwargs["timeout"] == 900.0
 
     def test_strips_markdown_code_block(self, mocker):
         """```json ... ``` 形式の応答からコードブロックが除去されること"""
@@ -272,6 +284,64 @@ class TestExtractTimeoutBehavior:
         with pytest.raises(LLMError):
             extract(prompt_input, model=_MODEL, base_url=_BASE_URL, max_retries=2)
         assert mock_call.call_count == 2
+
+
+# ── logger 引数によるログ出力 ──────────────────────────────────────
+
+class TestExtractLogging:
+
+    def test_success_logs_extra_fields(self, prompt_input, mocker):
+        """成功時に INFO ログが model/timeout_seconds/input_chars/output_chars/elapsed_ms/attempt を含むこと"""
+        mocker.patch("vmg.analysis.extractor._call_api", return_value=_SAMPLE_JSON)
+        logger = MagicMock()
+
+        extract(prompt_input, model=_MODEL, base_url=_BASE_URL, logger=logger)
+
+        logger.info.assert_called_once()
+        extra = logger.info.call_args.kwargs["extra"]
+        assert extra["model"] == _MODEL
+        assert extra["timeout_seconds"] == 900
+        assert extra["input_chars"] == len(prompt_input.prompt)
+        assert extra["output_chars"] == len(_SAMPLE_JSON)
+        assert "elapsed_ms" in extra
+        assert extra["attempt"] == 1
+
+    def test_timeout_logs_error_type(self, prompt_input, mocker):
+        """timeout時に ERROR ログが error_type='timeout' と elapsed_ms を含むこと"""
+        mocker.patch("vmg.analysis.extractor._call_api", side_effect=LLMTimeoutError("timed out"))
+        logger = MagicMock()
+
+        with pytest.raises(LLMTimeoutError):
+            extract(prompt_input, model=_MODEL, base_url=_BASE_URL, logger=logger)
+
+        logger.error.assert_called_once()
+        extra = logger.error.call_args.kwargs["extra"]
+        assert extra["error_type"] == "timeout"
+        assert "elapsed_ms" in extra
+
+    def test_retry_logs_warning_with_attempt(self, prompt_input, mocker):
+        """1回失敗→成功時に warning が attempt=1 で出ること"""
+        mocker.patch(
+            "vmg.analysis.extractor._call_api",
+            side_effect=[Exception("一時エラー"), _SAMPLE_JSON],
+        )
+        logger = MagicMock()
+
+        extract(prompt_input, model=_MODEL, base_url=_BASE_URL, logger=logger, max_retries=3)
+
+        assert logger.warning.call_count >= 1
+        extra = logger.warning.call_args_list[0].kwargs["extra"]
+        assert extra["attempt"] == 1
+        assert "elapsed_ms" in extra
+        assert "timeout_seconds" in extra
+
+    def test_no_logger_does_not_crash(self, prompt_input, mocker):
+        """logger=None（デフォルト）でもクラッシュしないこと"""
+        mocker.patch("vmg.analysis.extractor._call_api", return_value=_SAMPLE_JSON)
+
+        result = extract(prompt_input, model=_MODEL, base_url=_BASE_URL)
+
+        assert result == _SAMPLE_JSON
 
 
 # ── モジュール import の安全性（httpx は遅延importで保護） ─────────

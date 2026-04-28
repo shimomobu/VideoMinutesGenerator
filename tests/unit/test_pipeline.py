@@ -448,3 +448,50 @@ class TestPipelineJobId:
 
         create_job_mock.assert_called_once()
         assert create_job_mock.call_args.kwargs.get("forced_job_id") is None
+
+
+class TestPipelineMaxRetries:
+
+    def test_max_retries_passed_to_extract(
+        self, mocker, tmp_path, mock_asr_provider, mock_formatter_provider, sample_analysis
+    ):
+        """run_pipeline に max_retries=5 を渡すと extract に max_retries=5 が渡ること"""
+        _patch_all(mocker, tmp_path, sample_analysis)
+        extract_mock = mocker.patch("vmg.pipeline.extract", return_value=_RAW_ANALYSIS)
+
+        run_pipeline(
+            video_path=tmp_path / "meeting.mp4",
+            title="テスト会議",
+            datetime_str="2026-04-23T10:00:00",
+            participants=["田中"],
+            asr_provider=mock_asr_provider,
+            formatter_provider=mock_formatter_provider,
+            work_dir=tmp_path / "work",
+            output_dir=tmp_path / "output",
+            log_dir=tmp_path / "logs",
+            max_retries=5,
+        )
+
+        assert extract_mock.call_args.kwargs.get("max_retries") == 5
+
+    def test_default_max_retries_is_three(
+        self, mocker, tmp_path, mock_asr_provider, mock_formatter_provider, sample_analysis
+    ):
+        """max_retries 未指定時は extract に max_retries=3 が渡ること"""
+        _patch_all(mocker, tmp_path, sample_analysis)
+        extract_mock = mocker.patch("vmg.pipeline.extract", return_value=_RAW_ANALYSIS)
+
+        _run_pipeline(tmp_path, mock_asr_provider, mock_formatter_provider)
+
+        assert extract_mock.call_args.kwargs.get("max_retries") == 3
+
+    def test_default_timeout_seconds_is_900(
+        self, mocker, tmp_path, mock_asr_provider, mock_formatter_provider, sample_analysis
+    ):
+        """timeout_seconds 未指定時は extract に timeout_seconds=900 が渡ること"""
+        _patch_all(mocker, tmp_path, sample_analysis)
+        extract_mock = mocker.patch("vmg.pipeline.extract", return_value=_RAW_ANALYSIS)
+
+        _run_pipeline(tmp_path, mock_asr_provider, mock_formatter_provider)
+
+        assert extract_mock.call_args.kwargs.get("timeout_seconds") == 900

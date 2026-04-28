@@ -1,6 +1,7 @@
 """pipeline — 全ステージを順番に実行する Pipeline Runner（スキップ機構付き）"""
 from __future__ import annotations
 
+import functools
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -50,7 +51,8 @@ def run_pipeline(
     language: str = "ja",
     force: bool = False,
     job_id: str | None = None,
-    timeout_seconds: int = 120,
+    timeout_seconds: int = 900,
+    max_retries: int = 3,
 ) -> PipelineResult:
     video_path = Path(video_path)
     work_dir = Path(work_dir)
@@ -92,11 +94,11 @@ def run_pipeline(
     if not force and analysis_json.exists():
         analysis_result = _try_load_json(analysis_json, AnalysisResult, logger, "analysis")
         if analysis_result is None:
-            analysis_result = _execute_analysis(logger, transcript, model, base_url, job_meta.job_id, work_dir, timeout_seconds)
+            analysis_result = _execute_analysis(logger, transcript, model, base_url, job_meta.job_id, work_dir, timeout_seconds, max_retries)
         else:
             logger.info(stage="analysis", message="analysis.json が存在するためスキップ")
     else:
-        analysis_result = _execute_analysis(logger, transcript, model, base_url, job_meta.job_id, work_dir, timeout_seconds)
+        analysis_result = _execute_analysis(logger, transcript, model, base_url, job_meta.job_id, work_dir, timeout_seconds, max_retries)
 
     # --- Stage 5: formatter ---
     meeting_info = MeetingInfo(
@@ -148,11 +150,13 @@ def _execute_analysis(
     base_url: str,
     job_id: str,
     work_dir: Path,
-    timeout_seconds: int = 120,
+    timeout_seconds: int = 900,
+    max_retries: int = 3,
 ) -> AnalysisResult:
     chunks = _run(logger, "analysis.input_builder", build_prompt, transcript)
     if chunks:
-        raw_results = [_run(logger, "analysis.extractor", extract, chunk, model, base_url, timeout_seconds=timeout_seconds) for chunk in chunks]
+        _extract = functools.partial(extract, logger=logger)
+        raw_results = [_run(logger, "analysis.extractor", _extract, chunk, model, base_url, max_retries=max_retries, timeout_seconds=timeout_seconds) for chunk in chunks]
         validated_results = [_run(logger, "analysis.validator", validate_analysis, raw) for raw in raw_results]
         merged = _merge_validated(validated_results)
     else:

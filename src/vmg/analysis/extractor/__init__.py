@@ -1,7 +1,13 @@
 """analysis.extractor — Ollama（ローカルLLM）を呼び出して RawAnalysisJSON を取得する"""
 from __future__ import annotations
 
+import time
+from typing import TYPE_CHECKING
+
 from vmg.analysis.input_builder import PromptInput
+
+if TYPE_CHECKING:
+    from vmg.common.logger import StructuredLogger
 
 # 未検証 JSON 文字列の型エイリアス
 RawAnalysisJSON = str
@@ -31,22 +37,67 @@ def extract(
     model: str,
     base_url: str,
     max_retries: int = 3,
-    timeout_seconds: int = 120,
+    timeout_seconds: int = 900,
+    logger: "StructuredLogger | None" = None,
 ) -> RawAnalysisJSON:
     last_error: Exception | None = None
-    for _ in range(max_retries):
+    for attempt in range(1, max_retries + 1):
+        t0 = time.time()
         try:
-            return _call_api(prompt_input.prompt, model, base_url, timeout_seconds=timeout_seconds)
+            result = _call_api(prompt_input.prompt, model, base_url, timeout_seconds=timeout_seconds)
+            elapsed_ms = int((time.time() - t0) * 1000)
+            if logger is not None:
+                logger.info(
+                    stage="analysis.extractor",
+                    message="LLM呼び出し成功",
+                    extra={
+                        "model": model,
+                        "timeout_seconds": timeout_seconds,
+                        "input_chars": len(prompt_input.prompt),
+                        "output_chars": len(result),
+                        "elapsed_ms": elapsed_ms,
+                        "attempt": attempt,
+                    },
+                )
+            return result
         except LLMTimeoutError:
+            elapsed_ms = int((time.time() - t0) * 1000)
+            if logger is not None:
+                logger.error(
+                    stage="analysis.extractor",
+                    message="LLM呼び出しタイムアウト",
+                    extra={
+                        "error_type": "timeout",
+                        "elapsed_ms": elapsed_ms,
+                        "model": model,
+                        "timeout_seconds": timeout_seconds,
+                        "input_chars": len(prompt_input.prompt),
+                        "attempt": attempt,
+                    },
+                )
             raise
         except Exception as e:
+            elapsed_ms = int((time.time() - t0) * 1000)
+            if logger is not None:
+                logger.warning(
+                    stage="analysis.extractor",
+                    message=f"LLM呼び出し失敗（リトライ {attempt}/{max_retries}）",
+                    extra={
+                        "error_type": type(e).__name__,
+                        "elapsed_ms": elapsed_ms,
+                        "model": model,
+                        "timeout_seconds": timeout_seconds,
+                        "input_chars": len(prompt_input.prompt),
+                        "attempt": attempt,
+                    },
+                )
             last_error = e
     raise LLMError(
         f"Ollama 呼び出しが {max_retries} 回失敗しました: {last_error}"
     ) from last_error
 
 
-def _call_api(prompt: str, model: str, base_url: str, timeout_seconds: int = 120) -> str:
+def _call_api(prompt: str, model: str, base_url: str, timeout_seconds: int = 900) -> str:
     import httpx
 
     url = f"{base_url.rstrip('/')}/chat/completions"

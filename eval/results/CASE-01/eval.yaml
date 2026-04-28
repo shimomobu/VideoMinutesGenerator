@@ -1,7 +1,267 @@
 case_id: CASE-01
-executed_at: "2026-04-24"
-executor: shimode
-job_id: job_20260424_002026_0063d0
+# 最新実行（run-6）: timeout_seconds 600→900 整合更新後の回帰確認
+executed_at: "2026-04-28"
+
+# --- run-6 結果 ---
+run_6:
+  executed_at: "2026-04-28"
+  job_id: job_20260427_053313_441b8c
+  purpose: "timeout_seconds 600→900 整合更新（config/default.yaml + 全関数デフォルト値）後の回帰確認"
+  execution_notes: |
+    C案で実行。transcript.json が存在するため ASR をスキップ。
+    analysis.json を削除し --job-id フラグで再実行して analysis 以降を実行。
+    CUDA_VISIBLE_DEVICES="" なしで実行。
+  checks:
+    pipeline:
+      all_stages_passed: true
+      stage_errors: []
+      output_files_generated: true
+    markdown:
+      starts_with_h1_minutes: true
+      has_all_sections: true        # 全8セクション ✅
+      has_timestamp_format: true    # "[HH:MM:SS]" 形式 ✅
+    json:
+      schema_valid: true
+      job_id_matches: true
+      generated_at_is_iso8601: true
+      source_transcript_present: true
+    output_not_empty:
+      minutes_md: true    # 4550 bytes ✅
+      minutes_json: true  # 7401 bytes ✅
+      manifest_json: true # 232 bytes ✅
+    content:
+      summary_not_empty: true
+      decisions_count: 3
+      todos_count: 2
+      pending_items_count: 1
+    extractor_log_extra:
+      model_logged: true            # "gemma4" ✅
+      timeout_seconds_logged: true  # 900 ✅ （600→900 整合確認）
+      input_chars_logged: true      # 531 ✅
+      output_chars_logged: true     # 1629 ✅
+      elapsed_ms_logged: true       # 336934 ✅
+      attempt_logged: true          # 1 ✅
+  acceptance_criteria:
+    all_expected_checks_passed: true
+    some_content_extracted: true
+    no_crash: true
+    output_files_not_empty: true
+  performance:
+    analysis_extractor_duration_sec: ~337   # timeout=900秒 内に完了（余裕 ~563秒）
+    total_pipeline_time_sec: ~337
+  verdict: PASS
+  notes: |
+    timeout_seconds=900 がログに正しく記録されることを確認（600→900 整合完了）。
+    elapsed=337秒。余裕563秒（run-3の余裕45秒から大幅改善）。
+    ISSUE-01 対応: 完全解消ではなく「MVPでは900秒で運用回避」として記録。
+    根本解決（extractor高速化・小型モデル検討・warm-up導入）は別タスク。
+
+# --- run-5 結果 ---
+run_5:
+  executed_at: "2026-04-27"
+  job_id: job_20260427_053313_441b8c
+  purpose: "Whisper lazy load + CPU固定（ISSUE-03解消）後の回帰確認。CUDA_VISIBLE_DEVICES=\"\" なしで実行"
+  execution_notes: |
+    C案で実行。CUDA_VISIBLE_DEVICES="" を付けずに実行。
+    無音ダミー動画で ingest/preprocess/ASR を通した後、
+    transcript.json をダミー会議テキスト（7セグメント）で上書き。
+    analysis.json を削除し --job-id フラグで再実行して analysis 以降を実行。
+    Whisper は device="cpu" 固定のため GPU 競合なし。
+  checks:
+    pipeline:
+      all_stages_passed: true
+      stage_errors: []
+      output_files_generated: true
+    markdown:
+      starts_with_h1_minutes: true
+      has_all_sections: true        # 全8セクション ✅
+      has_timestamp_format: true    # "[HH:MM:SS]" 形式 ✅
+    json:
+      schema_valid: true
+      job_id_matches: true
+      generated_at_is_iso8601: true  # "2026-04-27T05:45:08.834672+00:00" ✅
+      source_transcript_present: true
+    output_not_empty:
+      minutes_md: true    # 4689 bytes ✅
+      minutes_json: true  # 7520 bytes ✅
+      manifest_json: true # 232 bytes ✅
+    content:
+      summary_not_empty: true
+      decisions_count: 3
+      todos_count: 2
+      pending_items_count: 1
+    extractor_log_extra:
+      model_logged: true            # "gemma4" ✅
+      timeout_seconds_logged: true  # 600 ✅
+      input_chars_logged: true      # 531 ✅
+      output_chars_logged: true     # 1644 ✅
+      elapsed_ms_logged: true       # 356352 ✅
+      attempt_logged: true          # 1 ✅
+    gpu_usage:
+      whisper_on_gpu: false         # nvidia-smi で確認。GPU使用プロセスはollama のみ ✅
+      ollama_on_gpu: true           # 9646 MiB + 1706 MiB ✅
+  acceptance_criteria:
+    all_expected_checks_passed: true
+    some_content_extracted: true
+    no_crash: true
+    output_files_not_empty: true
+  performance:
+    analysis_extractor_duration_sec: ~356   # timeout=600秒 内に完了（余裕 ~244秒）
+    total_pipeline_time_sec: ~356
+  verdict: PASS
+  notes: |
+    CUDA_VISIBLE_DEVICES="" なしで初めて PASS を確認。ISSUE-03 解消。
+    Whisper は "Performing inference on CPU when CUDA is available" 警告を出しながら CPU で実行。
+    GPU は Ollama のみが利用し、競合なし。
+
+# --- run-4 結果 ---
+run_4:
+  executed_at: "2026-04-27"
+  job_id: job_20260427_050204_eebad1
+  purpose: "extractor実行ログ強化（logger引数追加・成功/timeout/warning extra記録）後の回帰確認"
+  execution_notes: |
+    C案で実行。無音ダミー動画で ingest/preprocess/ASR を通した後、
+    transcript.json をダミー会議テキスト（7セグメント）で上書き。
+    analysis.json を削除し --job-id フラグで再実行して analysis 以降を実行。
+    Whisper は CUDA_VISIBLE_DEVICES="" で CPU 実行（ISSUE-03 回避）。
+  checks:
+    pipeline:
+      all_stages_passed: true
+      stage_errors: []
+      output_files_generated: true
+    markdown:
+      starts_with_h1_minutes: true
+      has_all_sections: true        # 全8セクション ✅
+      has_timestamp_format: true    # "[HH:MM:SS]" 形式 ✅
+    json:
+      schema_valid: true
+      job_id_matches: true
+      generated_at_is_iso8601: true  # "2026-04-27T05:10:42.065560+00:00" ✅
+      source_transcript_present: true
+    output_not_empty:
+      minutes_md: true    # 4272 bytes ✅
+      minutes_json: true  # 7113 bytes ✅
+      manifest_json: true # 232 bytes ✅
+    content:
+      summary_not_empty: true
+      decisions_count: 3
+      todos_count: 2
+      pending_items_count: 1
+    extractor_log_extra:
+      model_logged: true            # "gemma4" ✅
+      timeout_seconds_logged: true  # 600 ✅
+      input_chars_logged: true      # 531 ✅
+      output_chars_logged: true     # 1529 ✅
+      elapsed_ms_logged: true       # 238521 ✅
+      attempt_logged: true          # 1 ✅
+  acceptance_criteria:
+    all_expected_checks_passed: true
+    some_content_extracted: true
+    no_crash: true
+    output_files_not_empty: true
+  performance:
+    analysis_extractor_duration_sec: ~238   # timeout=600秒 内に完了（余裕 ~362秒）
+    total_pipeline_time_sec: ~247
+  verdict: PASS
+  notes: |
+    analysis.extractor が ~238秒（前回 ~555秒より大幅に短縮）。
+    extractor ログの extra（model/timeout_seconds/input_chars/output_chars/elapsed_ms/attempt）
+    が正常に記録されることを確認。ログ強化による動作変化はなし。
+
+# --- run-3 結果 ---
+run_3:
+  executed_at: "2026-04-27"
+  job_id: job_20260427_025047_1fb587
+  purpose: "timeout_seconds デフォルト値不整合解消（120→600、4箇所統一）後の回帰確認"
+  execution_notes: |
+    C案で実行。無音ダミー動画で ingest/preprocess/ASR を通した後、
+    transcript.json をダミー会議テキスト（7セグメント）で上書き。
+    analysis.json を削除し --job-id フラグで再実行して analysis 以降を実行。
+    Whisper は CUDA_VISIBLE_DEVICES="" で CPU 実行。
+  checks:
+    pipeline:
+      all_stages_passed: true
+      stage_errors: []
+      output_files_generated: true
+    markdown:
+      starts_with_h1_minutes: true
+      has_all_sections: true        # 全8セクション ✅
+      has_timestamp_format: true    # "[HH:MM:SS]" 形式 ✅
+    json:
+      schema_valid: true
+      job_id_matches: true
+      generated_at_is_iso8601: true  # "2026-04-27T03:06:06.854762+00:00" ✅
+      source_transcript_present: true
+    output_not_empty:
+      minutes_md: true    # 4476 bytes ✅
+      minutes_json: true  # 7329 bytes ✅
+      manifest_json: true # 232 bytes ✅
+    content:
+      summary_not_empty: true
+      decisions_count: 3
+      todos_count: 2
+      pending_items_count: 1
+  acceptance_criteria:
+    all_expected_checks_passed: true
+    some_content_extracted: true
+    no_crash: true
+    output_files_not_empty: true
+  performance:
+    analysis_extractor_duration_sec: ~555   # timeout=600秒 内に完了（余裕 ~45秒）
+    total_pipeline_time_sec: ~565
+  verdict: PASS
+  notes: |
+    analysis.extractor が ~555秒と前回（~311秒）より大幅に増加。
+    timeout=600秒に対して余裕は ~45秒のみ。Ollamaの状態次第でタイムアウトに近接するリスクあり。
+    timeout_seconds のデフォルト値変更（120→600）による動作変化はなし（CLI経由は常に config 値 600 を使用）。
+
+# --- run-2 結果 ---
+run_2:
+  executed_at: "2026-04-26"
+  job_id: job_20260426_011714_fb47ca
+  purpose: "timeout安全化（timeout_seconds: 300→600、LLMTimeoutError即失敗）後の回帰確認"
+  execution_notes: |
+    C案で実行。無音ダミー動画で ingest/preprocess/ASR を通し、
+    transcript.json をダミー会議テキスト（7セグメント）で上書き。
+    --job-id フラグで同一 job_id を再利用し ASR をスキップ。
+    Whisper は CUDA_VISIBLE_DEVICES="" で CPU 実行。
+  checks:
+    pipeline:
+      all_stages_passed: true
+      stage_errors: []
+      output_files_generated: true
+    markdown:
+      starts_with_h1_minutes: true
+      has_all_sections: true        # 全8セクション ✅
+      has_timestamp_format: true    # "[HH:MM:SS]" 形式 ✅
+    json:
+      schema_valid: true
+      job_id_matches: true
+      generated_at_is_iso8601: true  # "2026-04-26T01:24:54.613907+00:00" ✅
+      source_transcript_present: true
+    output_not_empty:
+      minutes_md: true    # 3373 bytes ✅
+      minutes_json: true  # 5697 bytes ✅
+      manifest_json: true # 232 bytes ✅
+    content:
+      summary_not_empty: true
+      decisions_count: 1   # run-1 は2件。LLM 非決定論のため変動あり（受容範囲）
+      todos_count: 1
+      pending_items_count: 2  # run-1 は1件。同上
+  acceptance_criteria:
+    all_expected_checks_passed: true
+    some_content_extracted: true
+    no_crash: true
+    output_files_not_empty: true
+  performance:
+    analysis_extractor_duration_sec: ~311   # timeout=600秒 余裕あり（ISSUE-01 解消）
+    total_pipeline_time_sec: ~311
+  verdict: PASS
+
+# --- run-1 結果（参考）---
+run_1:
+  executed_at: "2026-04-24"
+  job_id: job_20260424_002026_0063d0
 
 input:
   video: /tmp/case01_dummy.mp4  # 無音 30 秒ダミー動画（C案）
@@ -96,6 +356,7 @@ issues:
     action_required: "WhisperLocalProvider の lazy load 化、または CUDA_VISIBLE_DEVICES=\"\" の運用手順化"
 
 next_steps:
-  - timeout 改善: config.yaml の timeout_seconds を 600 に変更、または高速モデルへ切り替え
+  - ~~timeout 改善: config.yaml の timeout_seconds を 600 に変更~~  → run-2 で解消確認済み
   - Whisper lazy load 化の検討（WhisperLocalProvider.__init__ でのモデルロードを transcribe() に遅延）
   - 実音声付きダミー動画での CASE-01 再評価
+  - max_retries を AppConfig に接続し config/default.yaml の設定を有効化
