@@ -1,0 +1,91 @@
+case_id: CASE-02
+# 最新実行（run-1）: スマホ録音（実音声）による短尺技術打ち合わせ評価
+executed_at: "2026-04-28"
+
+# --- run-1 結果 ---
+run_1:
+  executed_at: "2026-04-28"
+  job_id: job_20260428_080631_5679a5
+  purpose: "スマホ録音の実音声（38.7秒）を ASR で文字起こしし、LLM の抽出精度を評価する"
+  execution_notes: |
+    スマホで録音した case02_recorded.m4a（245KB）を ffmpeg で mp4 変換後、通常実行。
+    ASR（Whisper small, device=cpu）、LLM（gemma4）を実行。
+    台本は CASE-03 と同一（7発話）。1名が両役を読み上げ。
+
+  checks:
+    pipeline:
+      all_stages_passed: true
+      stage_errors: []
+      output_files_generated: true   # minutes.md / minutes.json / manifest.json 生成 ✅
+
+    asr:
+      hallucination_detected: false
+      transcript_quality: medium     # CASE-03（合成音声）より改善。主要語彙の多くが正しく認識
+      notable_errors:
+        - "「バグ」→「バーグ」"
+        - "「確認しました」→「過ごにしました」"
+        - "「本番反映」→「本番範囲」"
+        - "「今週中」→「今週上」"
+        - "「外部API」→「バイブAPI」"
+        - "「仕様書」→「使用書」"
+        - "「届き次第共有してください」→「届きしない、教えしてください」"
+      correct_recognitions:
+        - "「スプリント」→正しく認識 ✅（CASE-03では「スプーンと」）"
+        - "「検索機能」→正しく認識 ✅"
+        - "「田中」→正しく認識 ✅"
+        - "「来週金曜日」→正しく認識 ✅"
+        - "「実装」→正しく認識 ✅（CASE-03では「自走」）"
+
+    content:
+      summary_not_empty: true
+      decisions_count: 3
+      decisions_extracted:
+        - "ログイン画面のバグ修正が完了したため、本番環境へのデプロイを今週に予定通り進める。"  # 期待値に対応 ✅
+        - "次期スプリントの主要機能として、検索機能の実装を行う。"                          # 期待値に対応 ✅
+        - "バイブAPIの使用書が入手できない場合は、関係者に速やかに共有する。"                 # ASR誤認識ベース △
+      todos_count: 2
+      todos_extracted:
+        - task: "検索機能の基本実装"
+          owner_candidate: "田中"
+          due_date_candidate: "来週金曜日"    # 担当・期限ともに正しく抽出 ✅
+        - task: "バイブAPIの使用書が入手できない場合のフォローアップ"
+          owner_candidate: "確認担当者"       # ASR誤認識の影響で候補が不明確 △
+          due_date_candidate: null
+      pending_items_count: 1
+      pending_items_extracted:
+        - "バイブAPIの使用書（資料）の入手状況確認"    # 期待値「外部API仕様書確認待ち」に対応 ✅
+
+    markdown:
+      starts_with_h1_minutes: true
+      has_all_sections: true
+    json:
+      schema_valid: true
+      job_id_matches: true
+
+  acceptance_criteria:
+    no_crash: true                   # クラッシュなし ✅
+    decisions_one_or_more: true      # decisions 3件 ✅
+    todos_with_owner_or_due: true    # todos に owner=田中・due=来週金曜日 ✅
+    pending_items_one_or_more: true  # pending_items 1件 ✅
+    summary_not_empty: true          # summary 空でない ✅
+    no_fake_decisions: true          # ASR誤認識ベースの内容はあるが架空情報なし ✅
+
+  performance:
+    asr_duration_ms: 35637           # ~36秒（CPU実行）
+    analysis_extractor_duration_ms: 295502  # ~296秒
+    total_pipeline_time_sec: ~332
+
+  verdict: PASS
+  notes: |
+    acceptance_criteria は全項目クリア。
+    CASE-03（合成音声）との比較:
+      改善点:
+        「スプリント」「検索機能」「実装」「田中」「来週金曜日」が正しく認識された ✅
+        CASE-03で漏れた「バグ修正完了」相当の decision が今回は抽出された ✅
+        ASR 品質: low（CASE-03）→ medium（CASE-02）に改善 ✅
+      残課題:
+        「外部API」→「バイブAPI」「仕様書」→「使用書」など固有名詞の誤認識が残る
+        「確認しました」→「過ごにしました」など短い発話の認識精度が低い
+    実音声（スマホ録音）は open-jtalk 合成音声より ASR 品質が高く、
+    decisions/todos の主要情報は概ね正しく抽出できた。
+    さらなる改善には実際の2名会話録音または高品質マイク録音が望ましい。
