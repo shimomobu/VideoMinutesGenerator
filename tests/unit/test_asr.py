@@ -46,32 +46,90 @@ class TestWhisperLocalProviderInterface:
         assert callable(provider.transcribe)
 
 
+# ── Lazy load / CPU 固定 ──────────────────────────────────────────
+
+class TestLazyLoad:
+    def test_init_does_not_load_whisper_model(self, mocker):
+        """__init__ では whisper.load_model を呼ばないこと"""
+        mock_mod = MagicMock()
+        mocker.patch.dict(sys.modules, {"whisper": mock_mod})
+        WhisperLocalProvider(model_name="base")
+        mock_mod.load_model.assert_not_called()
+
+    def test_transcribe_loads_model_with_cpu_device(self, tmp_path, mocker):
+        """transcribe() 初回実行時に load_model(model_name, device="cpu") が呼ばれること"""
+        mock_mod = MagicMock()
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = _make_whisper_result()
+        mock_mod.load_model.return_value = mock_model
+        mocker.patch.dict(sys.modules, {"whisper": mock_mod})
+        wav = tmp_path / "audio.wav"
+        wav.write_bytes(b"")
+        provider = WhisperLocalProvider(model_name="small")
+        provider.transcribe(str(wav), "ja")
+        mock_mod.load_model.assert_called_once_with("small", device="cpu")
+
+    def test_transcribe_does_not_reload_model_on_second_call(self, tmp_path, mocker):
+        """transcribe() 2回目では load_model が再呼び出しされないこと"""
+        mock_mod = MagicMock()
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = _make_whisper_result()
+        mock_mod.load_model.return_value = mock_model
+        mocker.patch.dict(sys.modules, {"whisper": mock_mod})
+        wav = tmp_path / "audio.wav"
+        wav.write_bytes(b"")
+        provider = WhisperLocalProvider(model_name="base")
+        provider.transcribe(str(wav), "ja")
+        provider.transcribe(str(wav), "ja")
+        mock_mod.load_model.assert_called_once_with("base", device="cpu")
+
+
 # ── モデルロード ──────────────────────────────────────────────────
 
 class TestModelLoad:
-    def test_default_model_name_is_base(self, mocker):
+    def test_default_model_name_is_base(self, tmp_path, mocker):
         mock_mod = MagicMock()
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = _make_whisper_result()
+        mock_mod.load_model.return_value = mock_model
         mocker.patch.dict(sys.modules, {"whisper": mock_mod})
-        WhisperLocalProvider()
-        mock_mod.load_model.assert_called_once_with("base")
+        wav = tmp_path / "audio.wav"
+        wav.write_bytes(b"")
+        WhisperLocalProvider().transcribe(str(wav), "ja")
+        mock_mod.load_model.assert_called_once_with("base", device="cpu")
 
-    def test_custom_model_name_small(self, mocker):
+    def test_custom_model_name_small(self, tmp_path, mocker):
         mock_mod = MagicMock()
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = _make_whisper_result()
+        mock_mod.load_model.return_value = mock_model
         mocker.patch.dict(sys.modules, {"whisper": mock_mod})
-        WhisperLocalProvider(model_name="small")
-        mock_mod.load_model.assert_called_once_with("small")
+        wav = tmp_path / "audio.wav"
+        wav.write_bytes(b"")
+        WhisperLocalProvider(model_name="small").transcribe(str(wav), "ja")
+        mock_mod.load_model.assert_called_once_with("small", device="cpu")
 
-    def test_custom_model_name_tiny(self, mocker):
+    def test_custom_model_name_tiny(self, tmp_path, mocker):
         mock_mod = MagicMock()
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = _make_whisper_result()
+        mock_mod.load_model.return_value = mock_model
         mocker.patch.dict(sys.modules, {"whisper": mock_mod})
-        WhisperLocalProvider(model_name="tiny")
-        mock_mod.load_model.assert_called_once_with("tiny")
+        wav = tmp_path / "audio.wav"
+        wav.write_bytes(b"")
+        WhisperLocalProvider(model_name="tiny").transcribe(str(wav), "ja")
+        mock_mod.load_model.assert_called_once_with("tiny", device="cpu")
 
-    def test_custom_model_name_large(self, mocker):
+    def test_custom_model_name_large(self, tmp_path, mocker):
         mock_mod = MagicMock()
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = _make_whisper_result()
+        mock_mod.load_model.return_value = mock_model
         mocker.patch.dict(sys.modules, {"whisper": mock_mod})
-        WhisperLocalProvider(model_name="large")
-        mock_mod.load_model.assert_called_once_with("large")
+        wav = tmp_path / "audio.wav"
+        wav.write_bytes(b"")
+        WhisperLocalProvider(model_name="large").transcribe(str(wav), "ja")
+        mock_mod.load_model.assert_called_once_with("large", device="cpu")
 
 
 # ── transcribe 正常系 ──────────────────────────────────────────────
