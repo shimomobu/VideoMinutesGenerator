@@ -1,0 +1,63 @@
+case_id: CASE-05
+title: 無音・低レベルノイズ入力（異常系評価）
+purpose: >
+  発話なし入力（無音または低レベルノイズ）における Whisper ハルシネーション確認と、
+  異常入力時のパイプライン耐性を評価する。
+  通常の議事録品質評価ではなく、ASR を含む異常系の挙動評価が目的。
+
+meeting_type: なし（会議内容なし）
+participants_count:
+  min: 0
+  max: 0
+duration_minutes:
+  min: 0
+  max: 2
+audio_quality: none_or_noise   # none（無音） / noise（低レベルノイズ）
+
+# CASE-01 との違い:
+# CASE-01: transcript を手動上書きし、議事録生成品質を評価する（ASR はスキップ）
+# CASE-05: ASR を実行し、Whisper が無音/ノイズからどのような出力を生成するかを評価する
+
+input_variants:
+  - id: CASE-05a
+    description: 完全無音（0 dBFS）
+    generation: "ffmpeg -f lavfi -i anullsrc=r=16000:cl=mono -t 30 -c:a pcm_s16le silent.wav"
+    notes: "ffmpeg のみで生成可能。実データ不要"
+  - id: CASE-05b
+    description: 低レベルホワイトノイズ（-40 dBFS 程度）
+    generation: "ffmpeg -f lavfi -i \"anoisesrc=r=16000:color=white:amplitude=0.01\" -t 30 -c:a pcm_s16le noise.wav"
+    notes: "ffmpeg のみで生成可能。実データ不要"
+
+expected_checks:
+  asr:
+    - Whisper が出力する transcript を記録すること
+    - 無音時に「ご視聴ありがとうございました」等のハルシネーションが発生するか確認すること（ISSUE-02）
+    - transcript が空、または意味のないテキストになることが望ましい
+  pipeline:
+    - パイプラインがクラッシュしないこと（空 transcript でも PipelineError にならない）
+    - logs/{job_id}.jsonl に全ステージのエントリが記録されること
+    - minutes.md / minutes.json / manifest.json の3ファイルが生成されること
+  content:
+    - decisions が空、または架空の決定事項を含まないこと
+    - todos が空、または架空の ToDo を含まないこと
+    - summary が空、または低情報量である旨が記録されること
+  markdown:
+    - "# 議事録" から始まること（構造は維持される）
+    - 全8セクションが出力されること（内容が空でも可）
+
+acceptance_criteria:
+  - パイプラインがクラッシュ・例外終了しないこと
+  - 架空の decisions が出力されないこと
+  - 架空の todos が出力されないこと
+  - ハルシネーション transcript の有無と内容が記録されること
+
+risk:
+  - Whisper が無音/ノイズから日本語ハルシネーションを生成する（ISSUE-02 既知）
+  - LLM が ハルシネーション transcript を元に架空の decisions / todos を生成する可能性がある
+
+notes:
+  - 動画/音声ファイルはリポジトリにコミットしない（.gitignore 設定済み）
+  - input_variants の ffmpeg コマンドでローカル生成可能。実データ不要
+  - 評価結果は eval/results/CASE-05/eval.yaml に記録すること（実行後）
+  - CASE-01 との違い: CASE-01 は transcript を手動上書きして ASR をスキップするが、
+    CASE-05 は Whisper を実際に実行してハルシネーション挙動を観察することが目的
