@@ -193,7 +193,9 @@
 
 以下はタスク進捗の短縮メモ。必要に応じて更新する。
 
-### 完了済み
+### 完了済み（MVP 全タスク）
+
+**task-breakdown.md 定義タスク（TASK-00-01〜TASK-07-04）**
 - TASK-00-01 プロジェクト初期セットアップ
 - TASK-00-02 共通型定義
 - TASK-00-03 設定管理
@@ -209,13 +211,41 @@
 - TASK-04-02 extractor 実装（Ollama/httpx）
 - TASK-04-03 validator 実装
 - TASK-04-04 postprocess 実装
-- AnalysisResult 差分解消（agenda / decisions / pending_items / notes 追加、Topic 定義統一）
-- TASK-05-01 標準議事録テンプレート作成（src/vmg/formatter/templates/standard.md.j2）
-- TASK-05-02 StandardFormatter 実装（src/vmg/formatter/__init__.py）
-- TASK-06-01 Markdown 出力（src/vmg/export/__init__.py: write_markdown）
-
-### 次タスク
+- TASK-05-01 標準議事録テンプレート作成
+- TASK-05-02 StandardFormatter 実装
+- TASK-06-01 Markdown 出力
 - TASK-06-02 JSON 出力
+- TASK-06-03 manifest.json 出力
+- TASK-07-01 Pipeline Runner 実装
+- TASK-07-02 ステージスキップ機構
+- TASK-07-03 CLI エントリポイント実装
+- TASK-07-04 E2E 統合テスト（CASE-01 run-6 PASS 確認済み）
+
+**追加実装（安定化対応）**
+- AnalysisResult 差分解消（agenda / decisions / pending_items / notes 追加、Topic 定義統一）
+- timeout 安全化（LLMTimeoutError 即失敗、timeout_seconds: 900 に整合）
+- max_retries を config → AppConfig → cli → extract まで接続
+- extractor 実行ログ強化（model / timeout_seconds / elapsed_ms / attempt 等の extra 出力）
+- Whisper lazy load 化 + `device="cpu"` 固定（ISSUE-03 GPU競合解消）
+
+### 残課題（ISSUE）
+
+- **ISSUE-01** (medium): extractor 応答時間の変動（238〜556 秒）。timeout=900 秒で運用回避済みだが根本解決ではない
+- **ISSUE-02** (low): 無音動画で Whisper ハルシネーション（eval 用途のみ影響）
+- timeout 値の完全一元化（yaml と関数デフォルトの二重管理が残存）
+- `asr.device` の config 化（現在 `device="cpu"` をコード内にハードコード）
+- Whisper CPU 実行警告の抑制（低優先）
+
+### 次フェーズ候補
+
+| 候補 | 種別 | 優先度 |
+|------|------|--------|
+| 実音声付きケースでの評価（evaluation-plan.md 参照） | 品質確認 | High |
+| ISSUE-01: extractor 高速化（小型モデル検討・warm-up） | 技術的負債 | Medium |
+| E2E テストの自動化整備 | 品質向上 | Medium |
+| timeout 値の完全一元化 | 技術的負債 | Low |
+| `asr.device` の config 化 | 技術的負債 | Low |
+| 話者分離・DOCX/PDF 出力等（task-breakdown.md §5） | 将来拡張 | Later |
 
 ---
 
