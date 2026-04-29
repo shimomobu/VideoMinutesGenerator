@@ -14,6 +14,7 @@ from vmg.analysis.input_builder import build_prompt
 from vmg.analysis.postprocess import postprocess as run_postprocess
 from vmg.analysis.validator import validate as validate_analysis
 from vmg.asr import save_transcript
+from vmg.asr.corrector import TranscriptCorrector
 from vmg.common.interfaces import ASRProvider, FormatterProvider
 from vmg.common.logger import StructuredLogger
 from vmg.common.models import AnalysisResult, MeetingInfo, MinutesOutput, OutputManifest, Transcript
@@ -53,6 +54,8 @@ def run_pipeline(
     force: bool = False,
     job_id: str | None = None,
     max_retries: int = 3,
+    correction_rules: list[dict] | None = None,
+    correction_enabled: bool = True,
 ) -> PipelineResult:
     video_path = Path(video_path)
     work_dir = Path(work_dir)
@@ -88,6 +91,8 @@ def run_pipeline(
     else:
         transcript = _run(logger, "asr", asr_provider.transcribe, preprocess_result.audio_path, language)
         _run(logger, "asr.save", save_transcript, transcript, job_meta.job_id, work_dir)
+
+    transcript = TranscriptCorrector(rules=correction_rules or [], enabled=correction_enabled).correct(transcript)
 
     # --- Stage 4: analysis ---
     analysis_json = work_dir / job_meta.job_id / "analysis.json"

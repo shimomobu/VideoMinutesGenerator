@@ -509,3 +509,78 @@ class TestPipelineMaxRetries:
         )
 
         assert extract_mock.call_args.kwargs.get("timeout_seconds") == 300
+
+
+class TestPipelineCorrector:
+    """pipeline 統合テスト: corrector が ASR 後・analysis 前に適用されること"""
+
+    def test_corrector_applied_before_analysis(
+        self, mocker, tmp_path, mock_formatter_provider, sample_analysis
+    ):
+        """#10: correction_enabled=True のとき補正済み transcript が build_prompt に渡される"""
+        from unittest.mock import MagicMock
+        mock_asr = MagicMock()
+        mock_asr.transcribe.return_value = Transcript(
+            language="ja",
+            segments=[TranscriptSegment(start=0.0, end=5.0, text="使用書を確認する")],
+            full_text="使用書を確認する",
+        )
+        _patch_all(mocker, tmp_path, sample_analysis)
+        build_prompt_mock = mocker.patch(
+            "vmg.pipeline.build_prompt",
+            return_value=[PromptInput(prompt="会議テキスト", segment_start=0, segment_end=0)],
+        )
+
+        run_pipeline(
+            video_path=tmp_path / "meeting.mp4",
+            title="テスト会議",
+            datetime_str="2026-04-23T10:00:00",
+            participants=["田中"],
+            asr_provider=mock_asr,
+            formatter_provider=mock_formatter_provider,
+            work_dir=tmp_path / "work",
+            output_dir=tmp_path / "output",
+            log_dir=tmp_path / "logs",
+            timeout_seconds=900,
+            correction_rules=[{"wrong": "使用書", "correct": "仕様書"}],
+            correction_enabled=True,
+        )
+
+        called_transcript = build_prompt_mock.call_args.args[0]
+        assert called_transcript.full_text == "仕様書を確認する"
+        assert called_transcript.segments[0].text == "仕様書を確認する"
+
+    def test_corrector_disabled_passes_original_transcript(
+        self, mocker, tmp_path, mock_formatter_provider, sample_analysis
+    ):
+        """#11: correction_enabled=False のとき補正なしで pipeline が通る"""
+        from unittest.mock import MagicMock
+        mock_asr = MagicMock()
+        mock_asr.transcribe.return_value = Transcript(
+            language="ja",
+            segments=[TranscriptSegment(start=0.0, end=5.0, text="使用書を確認する")],
+            full_text="使用書を確認する",
+        )
+        _patch_all(mocker, tmp_path, sample_analysis)
+        build_prompt_mock = mocker.patch(
+            "vmg.pipeline.build_prompt",
+            return_value=[PromptInput(prompt="会議テキスト", segment_start=0, segment_end=0)],
+        )
+
+        run_pipeline(
+            video_path=tmp_path / "meeting.mp4",
+            title="テスト会議",
+            datetime_str="2026-04-23T10:00:00",
+            participants=["田中"],
+            asr_provider=mock_asr,
+            formatter_provider=mock_formatter_provider,
+            work_dir=tmp_path / "work",
+            output_dir=tmp_path / "output",
+            log_dir=tmp_path / "logs",
+            timeout_seconds=900,
+            correction_rules=[{"wrong": "使用書", "correct": "仕様書"}],
+            correction_enabled=False,
+        )
+
+        called_transcript = build_prompt_mock.call_args.args[0]
+        assert called_transcript.full_text == "使用書を確認する"

@@ -6,6 +6,9 @@ asr:
   model_size: small         # tiny | base | small | medium | large
   language: ja
   initial_prompt: "これはシステム開発に関する技術的な会議の録音です。外部API、仕様書、バグ修正、本番反映、スプリント、検索機能について議論します。"  # null または空欄の場合は Whisper に渡さない
+  correction:
+    enabled: true
+    dict_path: config/correction_dict.yaml
 
 analysis:
   provider: ollama

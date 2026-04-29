@@ -1,0 +1,12 @@
+# 同音異義語誤変換補正辞書 — システム開発会議ドメイン
+# wrong: ASR が誤変換しやすい表記
+# correct: 正しい表記
+rules:
+  - wrong: "私用書"
+    correct: "仕様書"
+  - wrong: "使用書"
+    correct: "仕様書"
+  - wrong: "本番映し"
+    correct: "本番反映"
+  - wrong: "バック修正"
+    correct: "バグ修正"
