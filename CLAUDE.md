@@ -227,6 +227,7 @@
 - max_retries を config → AppConfig → cli → extract まで接続
 - extractor 実行ログ強化（model / timeout_seconds / elapsed_ms / attempt 等の extra 出力）
 - Whisper lazy load 化 + `device="cpu"` 固定（ISSUE-03 GPU競合解消）
+- `asr.initial_prompt` の config 制御化（AppConfig.whisper_initial_prompt → WhisperLocalProvider → transcribe に連携。null/空文字は無視）
 
 ### 残課題（ISSUE）
 
@@ -240,7 +241,7 @@
 
 | 候補 | 種別 | 優先度 |
 |------|------|--------|
-| 実音声付きケースでの評価（evaluation-plan.md 参照） | 品質確認 | High |
+| 実音声付きケースでの評価（evaluation-plan.md 参照）— CASE-02 run-3（initial_prompt 有効）完了 | 品質確認 | High |
 | ISSUE-01: extractor 高速化（小型モデル検討・warm-up） | 技術的負債 | Medium |
 | E2E テストの自動化整備 | 品質向上 | Medium |
 | timeout 値の完全一元化 | 技術的負債 | Low |
