@@ -1,6 +1,120 @@
 case_id: CASE-02
+# 最新実行（run-3）: initial_prompt 有効時の評価（Whisper small + prompt）
+executed_at: "2026-04-29"
+
+# --- run-3 結果 ---
+run_3:
+  executed_at: "2026-04-29"
+  job_id: job_20260429_013855_2bc663
+  purpose: "asr.initial_prompt を設定した状態で再評価し、run-1/run-2（prompt なし）との ASR 改善効果を確認する"
+  execution_notes: |
+    run-1 と同じ /tmp/case02_mic.mp4（38.7秒）を入力として通常実行。
+    ASR（Whisper small, device=cpu）、LLM（gemma4）を実行。
+    config/default.yaml の asr.initial_prompt に以下を設定:
+      "これはシステム開発に関する技術的な会議の録音です。外部API、仕様書、バグ修正、本番反映、スプリント、検索機能について議論します。"
+    model_size は small（run-1 と同じ）。
+
+  checks:
+    pipeline:
+      all_stages_passed: true
+      stage_errors: []
+      output_files_generated: true   # minutes.md / minutes.json / manifest.json 生成 ✅
+
+    asr:
+      hallucination_detected: false
+      prompt_words_injected_into_transcript: false   # prompt 語の直接混入なし ✅
+      transcript_quality: medium
+      notable_errors:
+        - "「ログイン画面」→「録音画面」（run-1/run-2 では正認識だったが今回後退 ❌）"
+        - "「確認しました」→「過ごにしました」（run-1/run-2 と同じ）"
+        - "「今週中」→「今週上」（run-2 medium では「今週中」に改善済みだったが後退）"
+        - "「外部API」→「バイブAPI」（run-1/run-2 と同じ。改善なし）"
+        - "「仕様書」→「使用書」（run-1/run-2 と同じ。改善なし ※未解決）"
+        - "「届き次第共有してください」→「届きしない、教えしてください」（run-1/run-2 と同じ）"
+      correct_recognitions:
+        - "「本番反映」→正しく認識 ✅（run-1 の「本番範囲」から改善済み。run-2 と同様）"
+        - "「スプリント」→正しく認識 ✅"
+        - "「検索機能」→正しく認識 ✅"
+        - "「田中」→正しく認識 ✅"
+        - "「来週金曜日」→正しく認識 ✅"
+      initial_prompt_analysis: |
+        狙った改善（「外部API」「仕様書」）は得られなかった。
+        prompt 内の「録音」という単語が「ログイン画面」→「録音画面」という
+        新たな誤認識を誘発した可能性が高い（run-1/run-2 では両方とも正認識）。
+        「今週中」→「今週上」への後退も run-2 より悪化しており、
+        今回の prompt 設計はネガティブな影響の方が大きかった。
+
+    content:
+      summary_not_empty: true
+      decisions_count: 2
+      decisions_extracted:
+        - "録音画面のバグ修正は機能的に完了し、今週の本番環境への反映を目指す。"  # ASR誤認識（録音画面）を引き継ぐが内容は概ね正しい △
+        - "次のスプリントで検索機能の実装を実施し、田中氏が担当する。"            # 期待値に対応 ✅
+      todos_count: 3
+      todos_extracted:
+        - task: "録音画面のバグ修正を本番環境に反映させる作業を進める。"
+          owner_candidate: null
+          due_date_candidate: "今週"
+        - task: "検索機能の基本実装を行う。"
+          owner_candidate: "田中"
+          due_date_candidate: "来週金曜日"    # 担当・期限ともに正しく抽出 ✅
+        - task: "バイブAPIの使用書の到着状況を継続的に確認し、進捗を共有する。"
+          owner_candidate: null
+          due_date_candidate: "継続的"
+      pending_items_count: 1
+      pending_items_extracted:
+        - "バイブAPIの使用書がまだ届いていないため、到着状況の継続的な確認が必要。"  # run-1/run-2 と同様 ✅
+
+    markdown:
+      starts_with_h1_minutes: true
+      has_all_sections: true
+    json:
+      schema_valid: true
+      job_id_matches: true
+
+  acceptance_criteria:
+    no_crash: true                   # クラッシュなし ✅
+    decisions_one_or_more: true      # decisions 2件 ✅
+    todos_with_owner_or_due: true    # todos に owner=田中・due=来週金曜日 ✅
+    pending_items_one_or_more: true  # pending_items 1件 ✅
+    summary_not_empty: true          # summary 空でない ✅
+    no_fake_decisions: true          # 架空情報なし ✅
+
+  performance:
+    asr_duration_ms: 35764           # ~36秒（small, run-1 の 35秒と同等。medium の 96秒より大幅短縮）
+    analysis_extractor_duration_ms: 300140  # ~300秒
+    total_pipeline_time_sec: ~338
+
+  verdict: PASS
+  initial_prompt_verdict: 保留
+  notes: |
+    acceptance_criteria は全項目クリア。
+    initial_prompt 採用可否: 保留（現状の prompt 設計では採用しない）
+
+    理由:
+      1. 狙った誤認識（「外部API」→「バイブAPI」、「仕様書」→「使用書」）の改善なし
+      2. prompt 内の「録音」が「ログイン画面」→「録音画面」という新たな誤認識を誘発した可能性
+      3. 「今週中」→「今週上」（run-2 medium では改善済みだったが本 run では後退）
+      4. prompt 語の直接混入は発生しなかった（安全面の懸念はなし）
+
+    未解決の誤認識:
+      - 「外部API」→「バイブAPI」: 3 run で一貫して誤認識。改善されていない
+      - 「仕様書」→「使用書」: 3 run で一貫して誤認識。別タスクとして対処予定
+
+    今後の改善方向:
+      - 誤認識する語を直接列挙する形式を試す（prompt 内に「録音」等の ambiguous な語を含めない）
+      - medium モデル + initial_prompt の組み合わせも別途試す価値がある
+
+    run-1/run-2/run-3 比較:
+      「外部API」: run-1「バイブAPI」→ run-2「バイボAPI」→ run-3「バイブAPI」（全て誤認識）
+      「仕様書」: run-1/run-2/run-3 ともに「使用書」（全て誤認識・未解決）
+      「ログイン画面」: run-1 ✅ → run-2 ✅ → run-3 ❌（run-3 で後退）
+      「本番反映」: run-1 ❌ → run-2 ✅ → run-3 ✅（run-2 以降で改善）
+      ASR 時間: run-1 35秒 → run-2 96秒（medium）→ run-3 36秒（small + prompt）
+
+# --- run-2 結果 ---
 # 最新実行（run-2）: Whisper medium による比較実験
-executed_at: "2026-04-28"
+executed_at_run2: "2026-04-28"
 
 # --- run-2 結果 ---
 run_2:
