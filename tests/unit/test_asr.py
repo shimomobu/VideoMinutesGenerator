@@ -425,6 +425,52 @@ class TestLoadTranscript:
         assert result.segments == []
 
 
+# ── initial_prompt ───────────────────────────────────────────────
+
+class TestInitialPrompt:
+    def test_no_initial_prompt_not_passed_to_transcribe(self, tmp_path, mocker):
+        """initial_prompt 未設定の場合、transcribe に initial_prompt を渡さないこと"""
+        mock_mod = MagicMock()
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = _make_whisper_result()
+        mock_mod.load_model.return_value = mock_model
+        mocker.patch.dict(sys.modules, {"whisper": mock_mod})
+        wav = tmp_path / "audio.wav"
+        wav.write_bytes(b"")
+        provider = WhisperLocalProvider()
+        provider.transcribe(str(wav), "ja")
+        _, kwargs = mock_model.transcribe.call_args
+        assert "initial_prompt" not in kwargs
+
+    def test_empty_initial_prompt_not_passed_to_transcribe(self, tmp_path, mocker):
+        """initial_prompt が空文字の場合、transcribe に initial_prompt を渡さないこと"""
+        mock_mod = MagicMock()
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = _make_whisper_result()
+        mock_mod.load_model.return_value = mock_model
+        mocker.patch.dict(sys.modules, {"whisper": mock_mod})
+        wav = tmp_path / "audio.wav"
+        wav.write_bytes(b"")
+        provider = WhisperLocalProvider(initial_prompt="")
+        provider.transcribe(str(wav), "ja")
+        _, kwargs = mock_model.transcribe.call_args
+        assert "initial_prompt" not in kwargs
+
+    def test_initial_prompt_passed_to_transcribe_when_set(self, tmp_path, mocker):
+        """initial_prompt が設定されていれば transcribe に渡すこと"""
+        mock_mod = MagicMock()
+        mock_model = MagicMock()
+        mock_model.transcribe.return_value = _make_whisper_result()
+        mock_mod.load_model.return_value = mock_model
+        mocker.patch.dict(sys.modules, {"whisper": mock_mod})
+        wav = tmp_path / "audio.wav"
+        wav.write_bytes(b"")
+        provider = WhisperLocalProvider(initial_prompt="これは会議の録音です")
+        provider.transcribe(str(wav), "ja")
+        _, kwargs = mock_model.transcribe.call_args
+        assert kwargs.get("initial_prompt") == "これは会議の録音です"
+
+
 # ── シリアライズ → デシリアライズ往復 ───────────────────────────────
 
 class TestTranscriptRoundTrip:

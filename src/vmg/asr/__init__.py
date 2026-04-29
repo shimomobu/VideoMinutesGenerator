@@ -16,15 +16,19 @@ def seconds_to_hms(seconds: float) -> str:
 
 
 class WhisperLocalProvider(ASRProvider):
-    def __init__(self, model_name: str = "base") -> None:
+    def __init__(self, model_name: str = "base", initial_prompt: str | None = None) -> None:
         self._model_name = model_name
+        self._initial_prompt = initial_prompt or None
         self._model = None
 
     def transcribe(self, audio_path: str, language: str) -> Transcript:
         if self._model is None:
             import whisper
             self._model = whisper.load_model(self._model_name, device="cpu")
-        result = self._model.transcribe(audio_path, language=language)
+        kwargs: dict = {"language": language}
+        if self._initial_prompt:
+            kwargs["initial_prompt"] = self._initial_prompt
+        result = self._model.transcribe(audio_path, **kwargs)
         segments = [
             TranscriptSegment(
                 start=float(seg["start"]),

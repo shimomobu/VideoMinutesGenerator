@@ -33,7 +33,7 @@ def main(
     except Exception as e:
         raise click.ClickException(f"設定読み込みエラー: {e}") from e
 
-    asr_provider = WhisperLocalProvider(model_name=config.whisper_model)
+    asr_provider = WhisperLocalProvider(model_name=config.whisper_model, initial_prompt=config.whisper_initial_prompt)
     formatter_provider = StandardFormatter()
 
     try:

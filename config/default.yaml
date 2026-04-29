@@ -5,6 +5,7 @@ asr:
   provider: whisper_local   # whisper_local | whisper_api | faster_whisper
   model_size: small         # tiny | base | small | medium | large
   language: ja
+  initial_prompt:           # null または空欄の場合は Whisper に渡さない
 
 analysis:
   provider: ollama

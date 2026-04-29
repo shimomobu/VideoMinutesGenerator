@@ -37,6 +37,7 @@ class AppConfig(BaseModel):
     llm_timeout_seconds: int
     llm_max_retries: int
     whisper_model: str
+    whisper_initial_prompt: str | None
     api_policy: ApiPolicyConfig
     diarization: DiarizationConfig
     paths: PathsConfig
@@ -54,12 +55,14 @@ def load_config(config_path: str | Path = _DEFAULT_CONFIG_PATH) -> AppConfig:
         raise ConfigError(f"設定ファイルの読み込みに失敗しました: {e}") from e
 
     try:
+        raw_prompt = raw.get("asr", {}).get("initial_prompt") or None
         config = AppConfig(
             llm_model=raw["analysis"]["model"],
             ollama_base_url=raw["analysis"]["base_url"],
             llm_timeout_seconds=int(raw["analysis"]["timeout_seconds"]),
             llm_max_retries=int(raw["analysis"]["max_retries"]),
             whisper_model=raw["asr"]["model_size"],
+            whisper_initial_prompt=raw_prompt,
             api_policy=ApiPolicyConfig(**raw["api_policy"]),
             diarization=DiarizationConfig(**raw["diarization"]),
             paths=PathsConfig(
