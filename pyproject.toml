@@ -22,6 +22,9 @@ dev = [
     "pytest-mock>=3.0",
     "mypy>=1.0",
 ]
+ui = [
+    "streamlit>=1.30",
+]
 
 [project.scripts]
 video-minutes = "vmg.cli:main"
