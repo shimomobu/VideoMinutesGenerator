@@ -4,7 +4,7 @@ import pytest
 from datetime import datetime
 from pathlib import Path
 
-from vmg.ingest import IngestResult, JobMeta, ValidationError, create_job, validate_video_file
+from vmg.ingest import IngestResult, JobMeta, ValidationError, create_job, validate_input_file, validate_video_file
 
 
 # ── 正常系（対応形式） ────────────────────────────────────────────
@@ -264,3 +264,46 @@ class TestForcedJobId:
         """forced_job_id=None の場合は新しい job_id が自動生成されること"""
         meta = create_job(ingest_result, work_dir=tmp_path / "work", forced_job_id=None)
         assert meta.job_id.startswith("job_")
+
+
+class TestValidateInputFileAudio:
+    """音声ファイル形式（wav/mp3/m4a）の受け入れテスト"""
+
+    def test_wav_accepted(self, tmp_path):
+        f = tmp_path / "recording.wav"
+        f.write_bytes(b"")
+        result = validate_input_file(f)
+        assert result.file_format == "wav"
+
+    def test_mp3_accepted(self, tmp_path):
+        f = tmp_path / "recording.mp3"
+        f.write_bytes(b"")
+        result = validate_input_file(f)
+        assert result.file_format == "mp3"
+
+    def test_m4a_accepted(self, tmp_path):
+        f = tmp_path / "recording.m4a"
+        f.write_bytes(b"")
+        result = validate_input_file(f)
+        assert result.file_format == "m4a"
+
+    def test_wav_format_preserved_in_result(self, tmp_path):
+        f = tmp_path / "recording.wav"
+        f.write_bytes(b"")
+        result = validate_input_file(f)
+        assert isinstance(result, IngestResult)
+        assert result.file_path == str(f)
+
+    def test_mp3_format_preserved_in_result(self, tmp_path):
+        f = tmp_path / "recording.mp3"
+        f.write_bytes(b"")
+        result = validate_input_file(f)
+        assert isinstance(result, IngestResult)
+        assert result.file_path == str(f)
+
+    def test_validate_video_file_alias_still_works(self, tmp_path):
+        """validate_video_file は validate_input_file の互換エイリアスであること"""
+        f = tmp_path / "meeting.mp4"
+        f.write_bytes(b"")
+        result = validate_video_file(f)
+        assert result.file_format == "mp4"

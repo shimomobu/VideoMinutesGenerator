@@ -10,7 +10,7 @@ from vmg.pipeline import PipelineError, run_pipeline
 
 
 @click.command()
-@click.option("--input", "input_path", required=True, type=click.Path(), help="入力動画ファイルパス（mp4/mov/mkv）")
+@click.option("--input", "input_path", required=True, type=click.Path(), help="入力ファイルパス（mp4/mov/mkv/wav/mp3/m4a）")
 @click.option("--title", required=True, help="会議タイトル")
 @click.option("--datetime", "datetime_str", required=True, help="会議日時（ISO8601形式、例: 2026-04-23T10:00:00）")
 @click.option("--participants", multiple=True, help="参加者名（複数指定可、例: --participants 田中 --participants 佐藤）")
@@ -38,7 +38,7 @@ def main(
 
     try:
         result = run_pipeline(
-            video_path=input_path,
+            input_path=input_path,
             title=title,
             datetime_str=datetime_str,
             participants=list(participants),

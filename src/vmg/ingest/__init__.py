@@ -7,7 +7,9 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-SUPPORTED_FORMATS = {"mp4", "mov", "mkv"}
+VIDEO_FORMATS = {"mp4", "mov", "mkv"}
+AUDIO_FORMATS = {"wav", "mp3", "m4a"}
+SUPPORTED_FORMATS = VIDEO_FORMATS | AUDIO_FORMATS
 
 
 class ValidationError(Exception):
@@ -20,7 +22,7 @@ class IngestResult(BaseModel):
     file_size_bytes: int
 
 
-def validate_video_file(file_path: str | Path) -> IngestResult:
+def validate_input_file(file_path: str | Path) -> IngestResult:
     path = Path(file_path)
 
     if not path.exists():
@@ -40,6 +42,9 @@ def validate_video_file(file_path: str | Path) -> IngestResult:
         file_format=ext,
         file_size_bytes=path.stat().st_size,
     )
+
+
+validate_video_file = validate_input_file
 
 
 class JobMeta(BaseModel):

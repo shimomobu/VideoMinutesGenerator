@@ -19,7 +19,7 @@ from vmg.common.interfaces import ASRProvider, FormatterProvider
 from vmg.common.logger import StructuredLogger
 from vmg.common.models import AnalysisResult, MeetingInfo, MinutesOutput, OutputManifest, Transcript
 from vmg.export import write_json, write_manifest, write_markdown
-from vmg.ingest import create_job, validate_video_file
+from vmg.ingest import create_job, validate_input_file
 from vmg.preprocess import extract_audio, validate_audio
 
 
@@ -38,7 +38,7 @@ class PipelineResult(BaseModel):
 
 
 def run_pipeline(
-    video_path: str | Path,
+    input_path: str | Path,
     title: str,
     datetime_str: str,
     participants: list[str],
@@ -57,13 +57,13 @@ def run_pipeline(
     correction_rules: list[dict] | None = None,
     correction_enabled: bool = True,
 ) -> PipelineResult:
-    video_path = Path(video_path)
+    input_path = Path(input_path)
     work_dir = Path(work_dir)
     output_dir = Path(output_dir)
 
     # --- Stage 1: ingest ---
     try:
-        ingest_result = validate_video_file(video_path)
+        ingest_result = validate_input_file(input_path)
         job_meta = create_job(ingest_result, work_dir, forced_job_id=job_id)
     except Exception as e:
         raise PipelineError(stage="ingest", cause=e) from e
@@ -110,7 +110,7 @@ def run_pipeline(
         title=title,
         datetime=datetime_str,
         participants=participants,
-        source_file=str(video_path),
+        source_file=str(input_path),
         duration_seconds=int(preprocess_result.duration_seconds or 0),
     )
     md_content = _run(logger, "formatter", formatter_provider.format, meeting_info, analysis_result, transcript)

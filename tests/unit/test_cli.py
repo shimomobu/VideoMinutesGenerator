@@ -83,6 +83,13 @@ class TestCliHelp:
         result = runner.invoke(main, ["--help"])
         assert "--force" in result.output
 
+    def test_help_contains_audio_formats(self, runner):
+        """--help に wav/mp3/m4a の記述が含まれること"""
+        result = runner.invoke(main, ["--help"])
+        assert "wav" in result.output
+        assert "mp3" in result.output
+        assert "m4a" in result.output
+
 
 class TestCliMissingArgs:
 

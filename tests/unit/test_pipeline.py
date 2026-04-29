@@ -67,8 +67,8 @@ _RAW_ANALYSIS = (
 def _patch_all(mocker, tmp_path, analysis) -> dict:
     """全ステージを正常系でモック化し、mock オブジェクトの dict を返す"""
     mocks = {}
-    mocks["validate_video_file"] = mocker.patch(
-        "vmg.pipeline.validate_video_file",
+    mocks["validate_input_file"] = mocker.patch(
+        "vmg.pipeline.validate_input_file",
         return_value=IngestResult(
             file_path=str(tmp_path / "meeting.mp4"),
             file_format="mp4",
@@ -128,7 +128,7 @@ def _patch_all(mocker, tmp_path, analysis) -> dict:
 
 def _run_pipeline(tmp_path, asr, formatter, *, force: bool = False, job_id: str | None = None):
     return run_pipeline(
-        video_path=tmp_path / "meeting.mp4",
+        input_path=tmp_path / "meeting.mp4",
         title="テスト会議",
         datetime_str="2026-04-23T10:00:00",
         participants=["田中", "佐藤"],
@@ -197,7 +197,7 @@ class TestPipelineRun:
         """ingest 失敗時に PipelineError が発生すること"""
         _patch_all(mocker, tmp_path, sample_analysis)
         mocker.patch(
-            "vmg.pipeline.validate_video_file",
+            "vmg.pipeline.validate_input_file",
             side_effect=Exception("ファイルが存在しない"),
         )
         with pytest.raises(PipelineError):
@@ -461,7 +461,7 @@ class TestPipelineMaxRetries:
         extract_mock = mocker.patch("vmg.pipeline.extract", return_value=_RAW_ANALYSIS)
 
         run_pipeline(
-            video_path=tmp_path / "meeting.mp4",
+            input_path=tmp_path / "meeting.mp4",
             title="テスト会議",
             datetime_str="2026-04-23T10:00:00",
             participants=["田中"],
@@ -495,7 +495,7 @@ class TestPipelineMaxRetries:
         extract_mock = mocker.patch("vmg.pipeline.extract", return_value=_RAW_ANALYSIS)
 
         run_pipeline(
-            video_path=tmp_path / "meeting.mp4",
+            input_path=tmp_path / "meeting.mp4",
             title="テスト会議",
             datetime_str="2026-04-23T10:00:00",
             participants=["田中"],
@@ -532,7 +532,7 @@ class TestPipelineCorrector:
         )
 
         run_pipeline(
-            video_path=tmp_path / "meeting.mp4",
+            input_path=tmp_path / "meeting.mp4",
             title="テスト会議",
             datetime_str="2026-04-23T10:00:00",
             participants=["田中"],
@@ -568,7 +568,7 @@ class TestPipelineCorrector:
         )
 
         run_pipeline(
-            video_path=tmp_path / "meeting.mp4",
+            input_path=tmp_path / "meeting.mp4",
             title="テスト会議",
             datetime_str="2026-04-23T10:00:00",
             participants=["田中"],
@@ -584,3 +584,61 @@ class TestPipelineCorrector:
 
         called_transcript = build_prompt_mock.call_args.args[0]
         assert called_transcript.full_text == "使用書を確認する"
+
+
+class TestAudioInput:
+    """音声ファイル入力: input_path に wav/mp3/m4a を渡した場合の動作確認"""
+
+    def test_wav_input_calls_validate_input_file(
+        self, mocker, tmp_path, mock_asr_provider, mock_formatter_provider, sample_analysis
+    ):
+        """input_path に .wav を指定すると validate_input_file が呼ばれること"""
+        _patch_all(mocker, tmp_path, sample_analysis)
+        validate_mock = mocker.patch(
+            "vmg.pipeline.validate_input_file",
+            return_value=IngestResult(
+                file_path=str(tmp_path / "recording.wav"),
+                file_format="wav",
+                file_size_bytes=512,
+            ),
+        )
+        run_pipeline(
+            input_path=tmp_path / "recording.wav",
+            title="録音テスト",
+            datetime_str="2026-05-01T10:00:00",
+            participants=["田中"],
+            asr_provider=mock_asr_provider,
+            formatter_provider=mock_formatter_provider,
+            work_dir=tmp_path / "work",
+            output_dir=tmp_path / "output",
+            log_dir=tmp_path / "logs",
+            timeout_seconds=900,
+        )
+        validate_mock.assert_called_once()
+
+    def test_mp3_input_calls_validate_input_file(
+        self, mocker, tmp_path, mock_asr_provider, mock_formatter_provider, sample_analysis
+    ):
+        """input_path に .mp3 を指定すると validate_input_file が呼ばれること"""
+        _patch_all(mocker, tmp_path, sample_analysis)
+        validate_mock = mocker.patch(
+            "vmg.pipeline.validate_input_file",
+            return_value=IngestResult(
+                file_path=str(tmp_path / "recording.mp3"),
+                file_format="mp3",
+                file_size_bytes=512,
+            ),
+        )
+        run_pipeline(
+            input_path=tmp_path / "recording.mp3",
+            title="録音テスト",
+            datetime_str="2026-05-01T10:00:00",
+            participants=["田中"],
+            asr_provider=mock_asr_provider,
+            formatter_provider=mock_formatter_provider,
+            work_dir=tmp_path / "work",
+            output_dir=tmp_path / "output",
+            log_dir=tmp_path / "logs",
+            timeout_seconds=900,
+        )
+        validate_mock.assert_called_once()
