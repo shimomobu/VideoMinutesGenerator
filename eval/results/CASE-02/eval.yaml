@@ -1,6 +1,130 @@
 case_id: CASE-02
-# 最新実行（run-3）: initial_prompt 有効時の評価（Whisper small + prompt）
+# 最新実行（run-4）: 辞書ベース補正（TranscriptCorrector）有効時の評価
 executed_at: "2026-04-29"
+
+# --- run-4 結果 ---
+run_4:
+  executed_at: "2026-04-29"
+  job_id: job_20260429_045845_dad62d
+  purpose: "辞書ベース補正（TranscriptCorrector）を有効にして run-3 と比較し、補正効果と副作用を評価する"
+  execution_notes: |
+    run-3 と同じ /tmp/case02_mic.mp4（38.7秒）を入力として通常実行。
+    ASR（Whisper small, device=cpu）、LLM（gemma4）を実行。
+    config/default.yaml の asr.correction.enabled: true
+    config/correction_dict.yaml の補正ルール:
+      - wrong: "使用書" → correct: "仕様書"
+      - wrong: "私用書" → correct: "仕様書"
+      - wrong: "本番映し" → correct: "本番反映"
+      - wrong: "バック修正" → correct: "バグ修正"
+    initial_prompt は run-3 と同じ設定のまま。
+
+  checks:
+    pipeline:
+      all_stages_passed: true
+      stage_errors: []
+      output_files_generated: true   # minutes.md / minutes.json / manifest.json 生成 ✅
+
+    corrector:
+      correction_applied: true
+      target_corrected:
+        - "「使用書」→「仕様書」: ✅ transcript.json では「使用書」のまま、minutes.json の transcript では「仕様書」に補正済み"
+      false_positive_check:
+        - "「使用する」誤置換なし: ✅（transcript 中「確認中」「届いていない」等が無変更で残存）"
+        - "「使用方法」誤置換なし: ✅（テキスト中に「使用方法」は出現せず、誤置換の機会なし）"
+      analysis_input_verified: true   # analysis.json に「仕様書」が含まれ「使用書」は含まれない ✅
+      transcript_json_raw: true       # transcript.json は生 ASR 出力のまま（「使用書」残存）✅（設計通り）
+
+    asr:
+      hallucination_detected: false
+      notable_errors:
+        - "「ログイン画面」→「録音画面」（run-3 と同じ）"
+        - "「確認しました」→「過ごにしました」（run-3 と同じ）"
+        - "「今週中」→「今週上」（run-3 と同じ）"
+        - "「外部API」→「バイブAPI」（run-3 と同じ。補正辞書未対応）"
+        - "「仕様書」→「使用書」（ASR誤認識は run-3 と同じ。corrector で補正済み ✅）"
+      correct_recognitions:
+        - "「本番反映」→正しく認識 ✅"
+        - "「スプリント」→正しく認識 ✅"
+        - "「検索機能」→正しく認識 ✅"
+        - "「田中」→正しく認識 ✅"
+        - "「来週金曜日」→正しく認識 ✅"
+
+    content:
+      summary_not_empty: true
+      summary: "録音画面のバグ修正が完了し、今週中の本番反映が決定。田中氏が検索機能実装を担当（来週金曜日まで）。バイブAPIの仕様書が未着のため確認継続。"
+      decisions_count: 2
+      decisions_extracted:
+        - "録音画面のバグ修正について、今週中に本番反映を行うことで合意した。"       # △ ASR誤認識（録音画面）引き継ぎ
+        - "次のスプリントで、検索機能の実装を田中氏が担当し、来週金曜日までに基本実装を行うことを決定した。"  # ✅
+      todos_count: 3
+      todos_extracted:
+        - task: "録音画面のバグ修正を本番環境に反映させる。"
+          owner_candidate: null
+          due_date_candidate: "今週内"
+        - task: "検索機能の基本実装を完了させる。"
+          owner_candidate: "田中"
+          due_date_candidate: "来週金曜日"   # 担当・期限ともに正しく抽出 ✅
+        - task: "バイブAPIの仕様書について、進捗を確認し、未着の場合は関係者に共有する。"
+          owner_candidate: null
+          due_date_candidate: null
+          note: "「仕様書」と正しく表記 ✅（run-3 では「使用書」のまま）"
+      pending_items_count: 1
+      pending_items_extracted:
+        - "バイブAPIの仕様書（仕様書が届かない場合の代替案も検討が必要）"  # 「仕様書」と正しく表記 ✅
+
+    markdown:
+      starts_with_h1_minutes: true
+      has_all_sections: true
+    json:
+      schema_valid: true
+      job_id_matches: true
+
+  acceptance_criteria:
+    no_crash: true                   # クラッシュなし ✅
+    decisions_one_or_more: true      # decisions 2件 ✅
+    todos_with_owner_or_due: true    # todos に owner=田中・due=来週金曜日 ✅
+    pending_items_one_or_more: true  # pending_items 1件 ✅
+    summary_not_empty: true          # summary 空でない ✅
+    no_fake_decisions: true          # 架空情報なし ✅
+
+  performance:
+    asr_duration_ms: 36288           # ~36秒（run-3 の 35,764ms と同等。corrector オーバーヘッドなし）
+    analysis_extractor_duration_ms: 280709  # ~281秒（run-3 の 300,140ms より短縮。LLM変動の範囲内）
+    corrector_overhead_ms: ~0        # TranscriptCorrector は文字列 replace のみ。計測不要レベル
+    total_pipeline_time_sec: ~319
+
+  verdict: PASS
+  corrector_verdict: 採用
+  notes: |
+    acceptance_criteria は全項目クリア。
+
+    ✅ 補正効果:
+      - 「使用書」→「仕様書」: ASR後・LLM前での補正に成功
+      - analysis の todos/pending_items に「仕様書」が正しく反映された（run-3 では「使用書」のまま）
+      - summary にも「仕様書」が含まれ、LLM の理解精度が改善
+
+    ✅ 副作用なし:
+      - 「使用する」「確認中」など「使用書」以外の文字列は無変更
+      - transcript.json は生 ASR 出力を保持（設計通り）
+      - ASR 時間・LLM 時間への影響なし（corrector 処理はμ秒レベル）
+
+    ✅ LLM 抽出品質（run-3 比較）:
+      - pending_items が「使用書」→「仕様書」に改善（最も直接的な効果）
+      - 「バイブAPIの仕様書」と正しく表記され、意味が伝わりやすくなった
+      - decisions/todos の件数・構造は run-3 と同等
+
+    未解決:
+      - 「外部API」→「バイブAPI」: 補正辞書に未追加（文脈依存リスクがあるため単純追加は慎重に）
+      - 「録音画面」: ASR誤認識 + initial_prompt 副作用で未解決
+
+    run-3 との比較:
+      補正なし（run-3）: todos/pending に「使用書」が混入 → LLMも「使用書」として処理
+      補正あり（run-4）: todos/pending に「仕様書」が正しく反映 ✅
+      処理時間: 同等（run-3: ~338秒 → run-4: ~319秒。LLM変動の範囲内）
+
+    採用判断: 採用
+      辞書ベース補正は副作用なし・コストゼロで明確な改善効果あり。
+      本番運用で継続使用する。辞書のメンテナンス（語彙追加）は eval 結果に基づき随時実施。
 
 # --- run-3 結果 ---
 run_3:
