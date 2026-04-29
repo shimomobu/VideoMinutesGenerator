@@ -5,7 +5,7 @@
 - 日時: {{ meeting_info.datetime }}
 - 参加者: {{ meeting_info.participants | join(', ') }}
 - 元動画ファイル: {{ meeting_info.source_file }}
-- 会議時間: {{ meeting_info.duration_seconds // 3600 }}時間{{ (meeting_info.duration_seconds % 3600) // 60 }}分
+- 会議時間: {{ meeting_info.duration_seconds | duration_hms }}
 
 ## 2. 会議要約
 {{ analysis.summary if analysis.summary else '（なし）' }}

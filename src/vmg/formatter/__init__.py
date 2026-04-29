@@ -18,6 +18,16 @@ def _seconds_to_hms(seconds: float) -> str:
     return f"{h:02d}:{m:02d}:{sec:02d}"
 
 
+def _duration_to_hms(seconds: int) -> str:
+    h, r = divmod(seconds, 3600)
+    m, s = divmod(r, 60)
+    if h:
+        return f"{h}時間{m}分{s}秒"
+    if m:
+        return f"{m}分{s}秒"
+    return f"{s}秒"
+
+
 class StandardFormatter(FormatterProvider):
     def __init__(self) -> None:
         self._env = Environment(
@@ -26,6 +36,7 @@ class StandardFormatter(FormatterProvider):
             keep_trailing_newline=True,
         )
         self._env.filters["seconds_to_hms"] = _seconds_to_hms
+        self._env.filters["duration_hms"] = _duration_to_hms
 
     def format(
         self,
