@@ -230,6 +230,20 @@ class TestCallApi:
         with pytest.raises(LLMTimeoutError):
             _call_api("prompt", _MODEL, _BASE_URL, timeout_seconds=_TIMEOUT)
 
+    def test_passes_temperature_zero_in_payload(self, mocker):
+        """temperature=0 がペイロードに含まれること（greedy decoding による再現性確保）"""
+        mock_post = self._make_httpx_mock(_SAMPLE_JSON, mocker)
+        _call_api("prompt", _MODEL, _BASE_URL, timeout_seconds=_TIMEOUT)
+        kwargs = mock_post.call_args[1]
+        assert kwargs["json"]["temperature"] == 0
+
+    def test_passes_seed_in_payload(self, mocker):
+        """seed=42 がペイロードに含まれること（再現性確保）"""
+        mock_post = self._make_httpx_mock(_SAMPLE_JSON, mocker)
+        _call_api("prompt", _MODEL, _BASE_URL, timeout_seconds=_TIMEOUT)
+        kwargs = mock_post.call_args[1]
+        assert kwargs["json"]["seed"] == 42
+
 
 # ── timeout 時のリトライ制御 ────────────────────────────────────────
 

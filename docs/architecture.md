@@ -401,6 +401,7 @@ data/
 - analysis/extractor は Ollama HTTP API（`http://localhost:11434/v1`）を通じてローカルの Gemma 4 を呼び出す
 - ネットワーク接続不要。会議内容が外部サービスに送信されることはない
 - Ollama が未起動の場合は `LLMError` でエラーメッセージに `base_url` / `model` / 起動確認方法を含める
+- **再現性確保**: LLM 呼び出し時に `temperature=0`（greedy decoding）と `seed=42` を固定する。同一 transcript に対して同一の analysis.json が生成されることを保証する
 
 #### 将来の拡張ポイント
 

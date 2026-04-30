@@ -108,6 +108,8 @@ def _call_api(prompt: str, model: str, base_url: str, timeout_seconds: int) -> s
             {"role": "user", "content": prompt},
         ],
         "stream": False,
+        "temperature": 0,
+        "seed": 42,
     }
     try:
         response = httpx.post(url, json=payload, timeout=float(timeout_seconds))
