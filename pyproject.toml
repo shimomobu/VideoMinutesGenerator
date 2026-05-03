@@ -25,6 +25,11 @@ dev = [
 ui = [
     "streamlit>=1.30",
 ]
+api = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "python-multipart>=0.0.9",
+]
 
 [project.scripts]
 video-minutes = "vmg.cli:main"
