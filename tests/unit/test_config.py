@@ -16,7 +16,7 @@ VALID_YAML_DATA = {
     "analysis": {
         "provider": "ollama",
         "model": "gemma4",
-        "base_url": "http://localhost:11434/v1",
+        "base_url": "http://localhost:11434",
         "max_retries": 3,
         "timeout_seconds": 120,
     },
@@ -58,7 +58,7 @@ class TestLoadConfigNormal:
 
     def test_ollama_base_url_loaded(self, valid_yaml):
         config = load_config(valid_yaml)
-        assert config.ollama_base_url == "http://localhost:11434/v1"
+        assert config.ollama_base_url == "http://localhost:11434"
 
     def test_whisper_model_loaded(self, valid_yaml):
         config = load_config(valid_yaml)

@@ -13,7 +13,7 @@ asr:
 analysis:
   provider: ollama
   model: gemma4
-  base_url: http://localhost:11434/v1
+  base_url: http://localhost:11434
   max_retries: 3
   timeout_seconds: 900
 

@@ -7,7 +7,7 @@ import pytest
 from vmg.analysis.extractor import LLMError, LLMTimeoutError, RawAnalysisJSON, _call_api, extract
 from vmg.analysis.input_builder import PromptInput
 
-_BASE_URL = "http://localhost:11434/v1"
+_BASE_URL = "http://localhost:11434"
 _MODEL = "gemma4"
 _TIMEOUT = 900
 
@@ -168,7 +168,7 @@ class TestCallApi:
     def _make_httpx_mock(self, response_text: str, mocker):
         mock_response = MagicMock()
         mock_response.json.return_value = {
-            "choices": [{"message": {"content": response_text}}]
+            "message": {"content": response_text}
         }
         mock_response.raise_for_status = MagicMock()
         return mocker.patch("httpx.post", return_value=mock_response)
@@ -187,7 +187,7 @@ class TestCallApi:
         mock_post = self._make_httpx_mock(_SAMPLE_JSON, mocker)
         _call_api("prompt", _MODEL, _BASE_URL, timeout_seconds=_TIMEOUT)
         args = mock_post.call_args[0]
-        assert args[0] == f"{_BASE_URL}/chat/completions"
+        assert args[0] == f"{_BASE_URL}/api/chat"
 
     def test_passes_model_in_payload(self, mocker):
         mock_post = self._make_httpx_mock(_SAMPLE_JSON, mocker)
@@ -235,14 +235,14 @@ class TestCallApi:
         mock_post = self._make_httpx_mock(_SAMPLE_JSON, mocker)
         _call_api("prompt", _MODEL, _BASE_URL, timeout_seconds=_TIMEOUT)
         kwargs = mock_post.call_args[1]
-        assert kwargs["json"]["temperature"] == 0
+        assert kwargs["json"]["options"]["temperature"] == 0
 
     def test_passes_seed_in_payload(self, mocker):
         """seed=42 がペイロードに含まれること（再現性確保）"""
         mock_post = self._make_httpx_mock(_SAMPLE_JSON, mocker)
         _call_api("prompt", _MODEL, _BASE_URL, timeout_seconds=_TIMEOUT)
         kwargs = mock_post.call_args[1]
-        assert kwargs["json"]["seed"] == 42
+        assert kwargs["json"]["options"]["seed"] == 42
 
 
 # ── timeout 時のリトライ制御 ────────────────────────────────────────

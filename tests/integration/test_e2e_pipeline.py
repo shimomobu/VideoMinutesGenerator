@@ -93,14 +93,14 @@ class E2EContext:
     log_dir: Path
 
 
-_OLLAMA_BASE_URL = "http://localhost:11434/v1"
+_OLLAMA_BASE_URL = "http://localhost:11434"
 _OLLAMA_MODEL = "gemma4"
 
 
 def _ollama_available() -> bool:
     try:
         import httpx
-        httpx.get(_OLLAMA_BASE_URL.replace("/v1", ""), timeout=3.0)
+        httpx.get(_OLLAMA_BASE_URL, timeout=3.0)
         return True
     except Exception:
         return False

@@ -100,7 +100,7 @@ def extract(
 def _call_api(prompt: str, model: str, base_url: str, timeout_seconds: int) -> str:
     import httpx
 
-    url = f"{base_url.rstrip('/')}/chat/completions"
+    url = f"{base_url.rstrip('/')}/api/chat"
     payload = {
         "model": model,
         "messages": [
@@ -108,8 +108,10 @@ def _call_api(prompt: str, model: str, base_url: str, timeout_seconds: int) -> s
             {"role": "user", "content": prompt},
         ],
         "stream": False,
-        "temperature": 0,
-        "seed": 42,
+        "options": {
+            "temperature": 0,
+            "seed": 42,
+        },
     }
     try:
         response = httpx.post(url, json=payload, timeout=float(timeout_seconds))
@@ -131,7 +133,7 @@ def _call_api(prompt: str, model: str, base_url: str, timeout_seconds: int) -> s
             f"(base_url={base_url}, model={model})"
         ) from e
     data = response.json()
-    content = data["choices"][0]["message"]["content"]
+    content = data["message"]["content"]
     return _strip_code_block(content)
 
 

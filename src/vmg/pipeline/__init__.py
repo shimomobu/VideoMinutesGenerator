@@ -46,7 +46,7 @@ def run_pipeline(
     formatter_provider: FormatterProvider,
     timeout_seconds: int,
     model: str = "gemma4",
-    base_url: str = "http://localhost:11434/v1",
+    base_url: str = "http://localhost:11434",
     work_dir: str | Path = "data/work",
     output_dir: str | Path = "data/output",
     log_dir: str | Path = "logs",
