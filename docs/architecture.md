@@ -28,6 +28,13 @@
 - ジョブ状態管理をメモリ内 dict + threading.Lock で実装（MVP 暫定）
 - pyproject.toml に `api` optional dependency グループを追加（fastapi / uvicorn / python-multipart）
 
+**v0.6 変更点**
+- API ジョブ状態管理を SQLite 永続化に移行（§9.5 更新）
+- `api/repository.py` を新設。`JobRepository` クラスが SQLite 操作を担当
+- DB スキーマ: `jobs` テーブル（job_id / status / created_at / started_at / finished_at / error / markdown_path / json_path / manifest_path）
+- `api/service.py` の `_jobs` dict を廃止。`_repo: JobRepository` に置き換え
+- DBファイル配置: `data/api/jobs.db`（起動時に自動作成）
+
 ---
 
 ## 2. 全体アーキテクチャ
@@ -619,18 +626,38 @@ pending → running → completed
 |---|---|
 | フレームワーク | FastAPI |
 | 非同期化 | `threading.Thread`（daemon=True）でバックグラウンド実行 |
-| 状態管理 | メモリ内 `dict[str, JobRecord]` + `threading.Lock`（DB 不要） |
+| 状態管理 | `api/repository.py` の `JobRepository` が SQLite に永続化 |
+| DBファイル | `data/api/jobs.db`（起動時に自動作成。ディレクトリ不在でも mkdir する） |
 | ファイル保存 | `tempfile.NamedTemporaryFile` でアップロードファイルを一時保存 |
 | pipeline 呼び出し | `run_pipeline()` をそのまま利用。CLI / Streamlit と同一コードパス |
 | 起動コマンド | `uvicorn api.app:app --reload` |
 | インストール | `pip install ".[api]"` |
 
-#### 制約・将来課題
+#### SQLite スキーマ（`jobs` テーブル）
 
-- MVP ではジョブ状態をメモリ管理するため、サーバー再起動でジョブが消える
-- 同時実行数の制限なし（将来: キューイング・ワーカー数制御）
-- 認証・認可なし（将来課題）
-- ジョブの TTL・クリーンアップなし（将来課題）
+```sql
+CREATE TABLE IF NOT EXISTS jobs (
+    job_id        TEXT PRIMARY KEY,
+    status        TEXT NOT NULL DEFAULT 'pending',  -- pending/running/completed/failed
+    created_at    TEXT NOT NULL,                    -- ISO 8601 UTC
+    started_at    TEXT,                             -- running 遷移時
+    finished_at   TEXT,                             -- completed / failed 遷移時
+    error         TEXT,                             -- failed 時のエラーメッセージ
+    markdown_path TEXT,                             -- completed 時: minutes.md の絶対パス
+    json_path     TEXT,                             -- completed 時: minutes.json の絶対パス
+    manifest_path TEXT                              -- completed 時: manifest.json の絶対パス
+)
+```
+
+#### MVP範囲と将来課題
+
+| 項目 | MVP | 将来課題 |
+|---|---|---|
+| 状態永続化 | SQLite（単一プロセス） | Redis、Celery、PostgreSQL |
+| 複数プロセス対応 | 未対応（単一 uvicorn プロセス） | SQLite WAL / 外部 DB |
+| ジョブ一覧 | 未実装 | GET /jobs（ページネーション付き） |
+| ジョブ削除/TTL | 未実装 | DELETE /jobs/{id}、期限管理 Cron |
+| 認証・認可 | 未実装（別タスク） | API キー、OAuth2 |
 
 ---
 
@@ -700,7 +727,8 @@ VideoMinutesGenerator/
 │  ├─ app.py                        # FastAPI アプリ生成（create_app / app インスタンス）
 │  ├─ routes.py                     # エンドポイント定義（POST /jobs, GET /jobs/{id}, GET /jobs/{id}/result）
 │  ├─ models.py                     # API リクエスト/レスポンス用 Pydantic モデル
-│  └─ service.py                    # ジョブ状態管理・バックグラウンドスレッド実行
+│  ├─ repository.py                 # JobRepository（SQLite CRUD: insert/set_running/set_completed/set_failed/get）
+│  └─ service.py                    # ジョブ状態管理・バックグラウンドスレッド実行（repository 経由で SQLite に永続化）
 ├─ app.py                           # Streamlit デモ UI（デモ目的のみ。本番 UI ではない）
 ├─ .env.example
 ├─ .gitignore
@@ -726,7 +754,8 @@ VideoMinutesGenerator/
 | デモ UI の実行方式 | `run_pipeline()` を同期実行（app.py） | デモ用途のため実装の単純さを優先。非同期化・進捗バー・キャンセルは MVP 外とした |
 | デモ UI の位置づけ | `app.py` はデモ目的のみ。本番 UI ではない | 本番利用には非同期化・エラー復帰・認証等の追加設計が必要なため明示的に分離する |
 | REST API の非同期化 | `threading.Thread`（daemon=True）を使用 | `run_pipeline()` は CPU/IO ブロッキング処理。FastAPI の `BackgroundTasks` は ASGI ループ内実行のため適さず、別スレッドで実行する |
-| REST API のジョブ状態管理 | メモリ内 dict（MVP 暫定） | DB 不要でシンプルに実装する。本番化時には Redis 等の永続ストアに切り替える |
+| REST API のジョブ状態管理 | SQLite（`data/api/jobs.db`） | サーバー再起動でジョブが消える問題を解決する。単一プロセスでの運用に十分。本番スケール時は Redis 等に切り替える |
+| REST API の Repository 分離 | `api/repository.py`（`JobRepository`） | SQLite 操作を service から分離し、テスト時に DB パスを差し替え可能にするため |
 
 ---
 

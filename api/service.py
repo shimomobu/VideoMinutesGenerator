@@ -13,38 +13,69 @@ from vmg.formatter import StandardFormatter
 from vmg.pipeline import PipelineResult, run_pipeline
 
 from .models import JobStatus
+from .repository import JobRepository
 
-_jobs: dict[str, "JobRecord"] = {}
-_lock = threading.Lock()
+_DEFAULT_DB_PATH = Path("data/api/jobs.db")
+
+_repo: JobRepository | None = None
+_repo_lock = threading.Lock()
 
 
 @dataclass
 class JobRecord:
     job_id: str
     status: JobStatus = field(default=JobStatus.pending)
-    result: PipelineResult | None = None
     error: str | None = None
 
 
+def init_repo(db_path: str | Path) -> None:
+    """リポジトリを指定パスで初期化する（テスト時の DB 差し替えにも使用）"""
+    global _repo
+    with _repo_lock:
+        _repo = JobRepository(db_path)
+
+
+def _get_repo() -> JobRepository:
+    global _repo
+    if _repo is None:
+        with _repo_lock:
+            if _repo is None:
+                _repo = JobRepository(_DEFAULT_DB_PATH)
+    return _repo
+
+
 def create_job(job_id: str) -> JobRecord:
-    record = JobRecord(job_id=job_id)
-    with _lock:
-        _jobs[job_id] = record
-    return record
+    _get_repo().insert(job_id)
+    return JobRecord(job_id=job_id, status=JobStatus.pending)
 
 
 def get_job(job_id: str) -> JobRecord | None:
-    with _lock:
-        return _jobs.get(job_id)
+    row = _get_repo().get(job_id)
+    if row is None:
+        return None
+    return JobRecord(
+        job_id=row["job_id"],
+        status=JobStatus(row["status"]),
+        error=row.get("error"),
+    )
 
 
 def get_job_snapshot(job_id: str) -> tuple[JobStatus, PipelineResult | None, str | None] | None:
-    """status・result・error をロック内でアトミックに取得する"""
-    with _lock:
-        rec = _jobs.get(job_id)
-        if rec is None:
-            return None
-        return rec.status, rec.result, rec.error
+    """status・result・error をアトミックに取得する"""
+    row = _get_repo().get(job_id)
+    if row is None:
+        return None
+    status = JobStatus(row["status"])
+    error = row.get("error")
+    result: PipelineResult | None = None
+    if status == JobStatus.completed and row.get("markdown_path"):
+        result = PipelineResult(
+            job_id=job_id,
+            markdown_path=row["markdown_path"],
+            json_path=row["json_path"] or "",
+            manifest_path=row["manifest_path"] or "",
+        )
+    return status, result, error
 
 
 def submit_job(
@@ -59,8 +90,8 @@ def submit_job(
     """バックグラウンドスレッドでパイプラインを実行する"""
 
     def _run() -> None:
-        with _lock:
-            _jobs[job_id].status = JobStatus.running
+        repo = _get_repo()
+        repo.set_running(job_id)
 
         tmp_path: Path | None = None
         try:
@@ -91,14 +122,15 @@ def submit_job(
                 job_id=job_id,
             )
 
-            with _lock:
-                _jobs[job_id].status = JobStatus.completed
-                _jobs[job_id].result = result
+            repo.set_completed(
+                job_id,
+                result.markdown_path,
+                result.json_path,
+                result.manifest_path,
+            )
 
         except Exception as e:
-            with _lock:
-                _jobs[job_id].status = JobStatus.failed
-                _jobs[job_id].error = str(e)
+            repo.set_failed(job_id, str(e))
 
         finally:
             if tmp_path is not None:

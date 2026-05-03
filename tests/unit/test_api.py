@@ -21,16 +21,16 @@ from vmg.pipeline import PipelineResult
 
 # ── フィクスチャ ───────────────────────────────────────────────
 
+@pytest.fixture(autouse=True)
+def setup_test_db(tmp_path):
+    """各テストに専用の SQLite DB を割り当てる"""
+    api_service.init_repo(tmp_path / "test_jobs.db")
+    yield
+
+
 @pytest.fixture()
 def client():
     return TestClient(create_app())
-
-
-@pytest.fixture(autouse=True)
-def clear_jobs():
-    yield
-    with api_service._lock:
-        api_service._jobs.clear()
 
 
 def _fake_file(content: bytes = b"fake video") -> BytesIO:
@@ -114,9 +114,7 @@ def test_get_job_status_error_field_when_failed(client):
         )
     job_id = post_resp.json()["job_id"]
 
-    with api_service._lock:
-        api_service._jobs[job_id].status = JobStatus.failed
-        api_service._jobs[job_id].error = "テストエラー"
+    api_service._repo.set_failed(job_id, "テストエラー")
 
     resp = client.get(f"/jobs/{job_id}")
     assert resp.status_code == 200
@@ -153,8 +151,7 @@ def test_get_job_result_returns_409_when_running(client):
         )
     job_id = post_resp.json()["job_id"]
 
-    with api_service._lock:
-        api_service._jobs[job_id].status = JobStatus.running
+    api_service._repo.set_running(job_id)
 
     resp = client.get(f"/jobs/{job_id}/result")
     assert resp.status_code == 409
@@ -167,13 +164,6 @@ def test_get_job_result_json_when_completed(client, tmp_path):
     md_path = tmp_path / "minutes.md"
     md_path.write_text("# 議事録\n\nテスト", encoding="utf-8")
 
-    mock_result = PipelineResult(
-        job_id="test_job",
-        markdown_path=str(md_path),
-        json_path=str(json_path),
-        manifest_path=str(tmp_path / "manifest.json"),
-    )
-
     with patch("api.service.submit_job"):
         post_resp = client.post(
             "/jobs",
@@ -182,9 +172,12 @@ def test_get_job_result_json_when_completed(client, tmp_path):
         )
     job_id = post_resp.json()["job_id"]
 
-    with api_service._lock:
-        api_service._jobs[job_id].status = JobStatus.completed
-        api_service._jobs[job_id].result = mock_result
+    api_service._repo.set_completed(
+        job_id,
+        str(md_path),
+        str(json_path),
+        str(tmp_path / "manifest.json"),
+    )
 
     resp = client.get(f"/jobs/{job_id}/result")
     assert resp.status_code == 200
@@ -197,13 +190,6 @@ def test_get_job_result_returns_400_for_invalid_format(client, tmp_path):
     md_path = tmp_path / "minutes.md"
     md_path.write_text("# テスト", encoding="utf-8")
 
-    mock_result = PipelineResult(
-        job_id="test_job",
-        markdown_path=str(md_path),
-        json_path=str(json_path),
-        manifest_path=str(tmp_path / "manifest.json"),
-    )
-
     with patch("api.service.submit_job"):
         post_resp = client.post(
             "/jobs",
@@ -212,9 +198,12 @@ def test_get_job_result_returns_400_for_invalid_format(client, tmp_path):
         )
     job_id = post_resp.json()["job_id"]
 
-    with api_service._lock:
-        api_service._jobs[job_id].status = JobStatus.completed
-        api_service._jobs[job_id].result = mock_result
+    api_service._repo.set_completed(
+        job_id,
+        str(md_path),
+        str(json_path),
+        str(tmp_path / "manifest.json"),
+    )
 
     resp = client.get(f"/jobs/{job_id}/result?format=xml")
     assert resp.status_code == 400
@@ -226,13 +215,6 @@ def test_get_job_result_markdown_when_format_md(client, tmp_path):
     json_path = tmp_path / "minutes.json"
     json_path.write_text("{}", encoding="utf-8")
 
-    mock_result = PipelineResult(
-        job_id="test_job",
-        markdown_path=str(md_path),
-        json_path=str(json_path),
-        manifest_path=str(tmp_path / "manifest.json"),
-    )
-
     with patch("api.service.submit_job"):
         post_resp = client.post(
             "/jobs",
@@ -241,9 +223,12 @@ def test_get_job_result_markdown_when_format_md(client, tmp_path):
         )
     job_id = post_resp.json()["job_id"]
 
-    with api_service._lock:
-        api_service._jobs[job_id].status = JobStatus.completed
-        api_service._jobs[job_id].result = mock_result
+    api_service._repo.set_completed(
+        job_id,
+        str(md_path),
+        str(json_path),
+        str(tmp_path / "manifest.json"),
+    )
 
     resp = client.get(f"/jobs/{job_id}/result?format=md")
     assert resp.status_code == 200
@@ -259,12 +244,10 @@ def test_job_state_transitions():
     record = api_service.create_job(job_id)
     assert record.status == JobStatus.pending
 
-    with api_service._lock:
-        api_service._jobs[job_id].status = JobStatus.running
+    api_service._repo.set_running(job_id)
     assert api_service.get_job(job_id).status == JobStatus.running
 
-    with api_service._lock:
-        api_service._jobs[job_id].status = JobStatus.completed
+    api_service._repo.set_completed(job_id, "/md", "/json", "/manifest")
     assert api_service.get_job(job_id).status == JobStatus.completed
 
 
