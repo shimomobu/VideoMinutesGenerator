@@ -204,7 +204,7 @@ def _merge_validated(results: list[AnalysisResult]) -> AnalysisResult:
     first = results[0]
     return AnalysisResult(
         summary=first.summary,
-        agenda=first.agenda,
+        agenda=[a for r in results for a in r.agenda],
         topics=[t for r in results for t in r.topics],
         decisions=[d for r in results for d in r.decisions],
         pending_items=[p for r in results for p in r.pending_items],

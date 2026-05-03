@@ -16,6 +16,8 @@ router = APIRouter()
 _SUPPORTED_SUFFIXES = {".mp4", ".mov", ".mkv", ".wav", ".mp3", ".m4a"}
 _ALLOWED_RESULT_FORMATS = {"json", "md"}
 _MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB
+_CHUNK_SIZE = 1 * 1024 * 1024  # 1 MB
+_UPLOAD_DIR = Path("data/upload")
 
 
 @router.post("/jobs", status_code=202, response_model=CreateJobResponse)
@@ -29,18 +31,45 @@ async def create_job(
     if suffix not in _SUPPORTED_SUFFIXES:
         raise HTTPException(status_code=400, detail=f"対応していないファイル形式です: {suffix}")
 
-    file_bytes = await file.read(_MAX_UPLOAD_BYTES + 1)
-    if len(file_bytes) > _MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="ファイルサイズが上限（2 GB）を超えています")
-
     participants_list = [p.strip() for p in participants.split(",") if p.strip()]
 
     job_id = f"api_{uuid.uuid4().hex[:12]}"
+    upload_dir = _UPLOAD_DIR / job_id
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    upload_path = upload_dir / f"original{suffix}"
+
+    def _cleanup_upload() -> None:
+        upload_path.unlink(missing_ok=True)
+        try:
+            upload_dir.rmdir()
+        except OSError:
+            pass
+
+    written = 0
+    too_large = False
+    try:
+        with open(upload_path, "wb") as f:
+            while True:
+                chunk = await file.read(_CHUNK_SIZE)
+                if not chunk:
+                    break
+                written += len(chunk)
+                if written > _MAX_UPLOAD_BYTES:
+                    too_large = True
+                    break
+                f.write(chunk)
+    except Exception:
+        _cleanup_upload()
+        raise HTTPException(status_code=500, detail="ファイルの保存中にエラーが発生しました")
+
+    if too_large:
+        _cleanup_upload()
+        raise HTTPException(status_code=413, detail="ファイルサイズが上限（2 GB）を超えています")
+
     service.create_job(job_id)
     service.submit_job(
         job_id=job_id,
-        file_bytes=file_bytes,
-        file_suffix=suffix,
+        upload_path=upload_path,
         title=title,
         datetime_str=datetime,
         participants=participants_list,
@@ -74,8 +103,13 @@ def get_job_result(job_id: str, format: str = "json") -> JSONResponse | PlainTex
         raise HTTPException(status_code=500, detail="結果データが存在しません")
 
     if format == "md":
-        md_text = Path(result.markdown_path).read_text(encoding="utf-8")
-        return PlainTextResponse(content=md_text, media_type="text/markdown; charset=utf-8")
+        md_path = Path(result.markdown_path)
+        if not md_path.exists():
+            raise HTTPException(status_code=404, detail="結果ファイルが見つかりません")
+        return PlainTextResponse(content=md_path.read_text(encoding="utf-8"), media_type="text/markdown; charset=utf-8")
 
-    json_data = json.loads(Path(result.json_path).read_text(encoding="utf-8"))
+    json_path = Path(result.json_path)
+    if not json_path.exists():
+        raise HTTPException(status_code=404, detail="結果ファイルが見つかりません")
+    json_data = json.loads(json_path.read_text(encoding="utf-8"))
     return JSONResponse(content=json_data)

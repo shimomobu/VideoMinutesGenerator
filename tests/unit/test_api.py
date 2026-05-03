@@ -268,6 +268,9 @@ def test_submit_job_executes_in_background(tmp_path):
     job_id = "bg_test_job"
     api_service.create_job(job_id)
 
+    upload_path = tmp_path / "original.mp4"
+    upload_path.write_bytes(b"fake video")
+
     with patch("api.service.run_pipeline", side_effect=mock_run_pipeline), \
          patch("api.service.load_config") as mock_cfg, \
          patch("api.service.WhisperLocalProvider"), \
@@ -280,11 +283,13 @@ def test_submit_job_executes_in_background(tmp_path):
         mock_cfg.return_value.llm_max_retries = 1
         mock_cfg.return_value.correction_rules = []
         mock_cfg.return_value.correction_enabled = False
+        mock_cfg.return_value.paths.work_dir = "data/work"
+        mock_cfg.return_value.paths.output_dir = "data/output"
+        mock_cfg.return_value.paths.log_dir = "logs"
 
         api_service.submit_job(
             job_id=job_id,
-            file_bytes=b"fake",
-            file_suffix=".mp4",
+            upload_path=upload_path,
             title="テスト",
             datetime_str="2026-05-01T10:00:00",
             participants=["田中"],
@@ -295,3 +300,205 @@ def test_submit_job_executes_in_background(tmp_path):
     record = api_service.get_job(job_id)
     assert record.status == JobStatus.completed
     assert captured["job_id"] == job_id
+
+
+# ── アップロードファイル保存テスト ─────────────────────────────
+
+def test_post_jobs_saves_file_to_upload_dir(client, tmp_path):
+    """アップロードファイルがチャンク保存されること"""
+    with patch("api.routes._UPLOAD_DIR", tmp_path / "upload"), \
+         patch("api.service.submit_job"):
+        resp = client.post(
+            "/jobs",
+            data={"title": "週次定例", "datetime": "2026-05-01T10:00:00", "participants": "田中"},
+            files={"file": ("meeting.mp4", _fake_file(b"video data"), "video/mp4")},
+        )
+    assert resp.status_code == 202
+    job_id = resp.json()["job_id"]
+    upload_file = tmp_path / "upload" / job_id / "original.mp4"
+    assert upload_file.exists()
+    assert upload_file.read_bytes() == b"video data"
+
+
+def test_post_jobs_413_when_file_exceeds_limit(client, tmp_path):
+    """ファイルサイズが上限を超えた場合に 413 が返ること"""
+    with patch("api.routes._UPLOAD_DIR", tmp_path / "upload"), \
+         patch("api.routes._MAX_UPLOAD_BYTES", 5):
+        resp = client.post(
+            "/jobs",
+            data={"title": "週次定例", "datetime": "2026-05-01T10:00:00", "participants": "田中"},
+            files={"file": ("meeting.mp4", _fake_file(b"this is more than 5 bytes"), "video/mp4")},
+        )
+    assert resp.status_code == 413
+
+
+def test_post_jobs_413_cleans_up_partial_file(client, tmp_path):
+    """413 時にアップロードディレクトリが削除されること"""
+    upload_dir = tmp_path / "upload"
+    with patch("api.routes._UPLOAD_DIR", upload_dir), \
+         patch("api.routes._MAX_UPLOAD_BYTES", 5):
+        client.post(
+            "/jobs",
+            data={"title": "週次定例", "datetime": "2026-05-01T10:00:00", "participants": "田中"},
+            files={"file": ("meeting.mp4", _fake_file(b"this is more than 5 bytes"), "video/mp4")},
+        )
+    if upload_dir.exists():
+        for job_dir in upload_dir.iterdir():
+            assert not list(job_dir.iterdir()), f"{job_dir} にファイルが残っています"
+
+
+def test_get_job_result_returns_404_when_result_file_missing(client, tmp_path):
+    """result ファイルが存在しない場合に 404 が返ること（500 ではない）"""
+    md_path = tmp_path / "minutes.md"
+    json_path = tmp_path / "minutes.json"
+    # ファイルを作らない（存在しない状態）
+
+    mock_result = PipelineResult(
+        job_id="test_job",
+        markdown_path=str(md_path),
+        json_path=str(json_path),
+        manifest_path=str(tmp_path / "manifest.json"),
+    )
+
+    with patch("api.service.submit_job"):
+        post_resp = client.post(
+            "/jobs",
+            data={"title": "週次定例", "datetime": "2026-05-01T10:00:00", "participants": "田中"},
+            files={"file": ("meeting.mp4", _fake_file(), "video/mp4")},
+        )
+    job_id = post_resp.json()["job_id"]
+
+    api_service._repo.set_completed(
+        job_id,
+        str(md_path),
+        str(json_path),
+        str(tmp_path / "manifest.json"),
+    )
+
+    resp = client.get(f"/jobs/{job_id}/result")
+    assert resp.status_code == 404
+
+
+def test_post_jobs_cleans_up_dir_on_write_exception(client, tmp_path):
+    """upload 書き込み中に例外が起きた場合、upload ディレクトリが残らないこと"""
+    upload_dir = tmp_path / "upload"
+
+    with patch("api.routes._UPLOAD_DIR", upload_dir), \
+         patch("builtins.open", side_effect=OSError("ディスクフル")):
+        resp = client.post(
+            "/jobs",
+            data={"title": "週次定例", "datetime": "2026-05-01T10:00:00", "participants": "田中"},
+            files={"file": ("meeting.mp4", _fake_file(), "video/mp4")},
+        )
+
+    assert resp.status_code in (500, 400, 503)
+    if upload_dir.exists():
+        remaining = list(upload_dir.rglob("*"))
+        assert remaining == [], f"ディレクトリが残っています: {remaining}"
+
+
+def test_submit_job_stores_absolute_paths_in_db(tmp_path):
+    """SQLite に保存される result_path が絶対パスであること"""
+    completed = threading.Event()
+
+    md_path = tmp_path / "minutes.md"
+    json_path = tmp_path / "minutes.json"
+    manifest_path = tmp_path / "manifest.json"
+
+    def mock_run_pipeline(**kwargs):
+        # 意図的に相対パスを返す — service.py が絶対パスに変換すべき
+        return PipelineResult(
+            job_id="abs_test_job",
+            markdown_path="data/output/abs_test_job/minutes.md",
+            json_path="data/output/abs_test_job/minutes.json",
+            manifest_path="data/output/abs_test_job/manifest.json",
+        )
+
+    job_id = "abs_test_job"
+    api_service.create_job(job_id)
+    upload_path = tmp_path / "original.mp4"
+    upload_path.write_bytes(b"fake")
+
+    with patch("api.service.run_pipeline", side_effect=mock_run_pipeline), \
+         patch("api.service.load_config") as mock_cfg, \
+         patch("api.service.WhisperLocalProvider"), \
+         patch("api.service.StandardFormatter"):
+        mock_cfg.return_value.whisper_model = "base"
+        mock_cfg.return_value.whisper_initial_prompt = None
+        mock_cfg.return_value.llm_model = "gemma4"
+        mock_cfg.return_value.ollama_base_url = "http://localhost:11434"
+        mock_cfg.return_value.llm_timeout_seconds = 30
+        mock_cfg.return_value.llm_max_retries = 1
+        mock_cfg.return_value.correction_rules = []
+        mock_cfg.return_value.correction_enabled = False
+        mock_cfg.return_value.paths.work_dir = str(tmp_path / "work")
+        mock_cfg.return_value.paths.output_dir = str(tmp_path / "output")
+        mock_cfg.return_value.paths.log_dir = str(tmp_path / "logs")
+
+        api_service.submit_job(
+            job_id=job_id,
+            upload_path=upload_path,
+            title="テスト",
+            datetime_str="2026-05-01T10:00:00",
+            participants=["田中"],
+            on_complete=lambda: completed.set(),
+        )
+        completed.wait(timeout=5)
+
+    row = api_service._repo.get(job_id)
+    assert row["markdown_path"] is not None
+    assert Path(row["markdown_path"]).is_absolute(), f"絶対パスではありません: {row['markdown_path']}"
+    assert Path(row["json_path"]).is_absolute(), f"絶対パスではありません: {row['json_path']}"
+    assert Path(row["manifest_path"]).is_absolute(), f"絶対パスではありません: {row['manifest_path']}"
+
+
+def test_submit_job_passes_config_dirs_to_pipeline(tmp_path):
+    """submit_job が config の paths を run_pipeline に渡すことを確認"""
+    completed = threading.Event()
+    captured: dict = {}
+
+    def mock_run_pipeline(**kwargs):
+        captured["work_dir"] = kwargs.get("work_dir")
+        captured["output_dir"] = kwargs.get("output_dir")
+        captured["log_dir"] = kwargs.get("log_dir")
+        return PipelineResult(
+            job_id="dir_test_job",
+            markdown_path=str(tmp_path / "minutes.md"),
+            json_path=str(tmp_path / "minutes.json"),
+            manifest_path=str(tmp_path / "manifest.json"),
+        )
+
+    job_id = "dir_test_job"
+    api_service.create_job(job_id)
+    upload_path = tmp_path / "original.mp4"
+    upload_path.write_bytes(b"fake")
+
+    with patch("api.service.run_pipeline", side_effect=mock_run_pipeline), \
+         patch("api.service.load_config") as mock_cfg, \
+         patch("api.service.WhisperLocalProvider"), \
+         patch("api.service.StandardFormatter"):
+        mock_cfg.return_value.whisper_model = "base"
+        mock_cfg.return_value.whisper_initial_prompt = None
+        mock_cfg.return_value.llm_model = "gemma4"
+        mock_cfg.return_value.ollama_base_url = "http://localhost:11434"
+        mock_cfg.return_value.llm_timeout_seconds = 30
+        mock_cfg.return_value.llm_max_retries = 1
+        mock_cfg.return_value.correction_rules = []
+        mock_cfg.return_value.correction_enabled = False
+        mock_cfg.return_value.paths.work_dir = "custom/work"
+        mock_cfg.return_value.paths.output_dir = "custom/output"
+        mock_cfg.return_value.paths.log_dir = "custom/logs"
+
+        api_service.submit_job(
+            job_id=job_id,
+            upload_path=upload_path,
+            title="テスト",
+            datetime_str="2026-05-01T10:00:00",
+            participants=["田中"],
+            on_complete=lambda: completed.set(),
+        )
+        completed.wait(timeout=5)
+
+    assert captured["work_dir"] == "custom/work"
+    assert captured["output_dir"] == "custom/output"
+    assert captured["log_dir"] == "custom/logs"

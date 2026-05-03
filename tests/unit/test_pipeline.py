@@ -642,3 +642,47 @@ class TestAudioInput:
             timeout_seconds=900,
         )
         validate_mock.assert_called_once()
+
+
+# ── _merge_validated テスト ──────────────────────────────────────
+
+class TestMergeValidated:
+    """_merge_validated の結合ロジックを検証する"""
+
+    def _make_result(self, agenda):
+        from vmg.common.models import AnalysisResult
+        return AnalysisResult(
+            summary="要約",
+            agenda=agenda,
+            topics=[],
+            decisions=[],
+            pending_items=[],
+            todos=[],
+        )
+
+    def test_agenda_combined_from_all_chunks(self):
+        """複数チャンクの agenda がすべて結合されること"""
+        from vmg.pipeline import _merge_validated
+        r1 = self._make_result(agenda=["議題A", "議題B"])
+        r2 = self._make_result(agenda=["議題C"])
+        merged = _merge_validated([r1, r2])
+        assert "議題A" in merged.agenda
+        assert "議題B" in merged.agenda
+        assert "議題C" in merged.agenda
+        assert len(merged.agenda) == 3
+
+    def test_agenda_single_chunk_unchanged(self):
+        """チャンクが1つの場合 agenda がそのまま返ること"""
+        from vmg.pipeline import _merge_validated
+        r = self._make_result(agenda=["議題X", "議題Y"])
+        merged = _merge_validated([r])
+        assert merged.agenda == ["議題X", "議題Y"]
+
+    def test_agenda_empty_when_all_chunks_empty(self):
+        """全チャンクの agenda が空の場合、結合後も空であること"""
+        from vmg.pipeline import _merge_validated
+        merged = _merge_validated([
+            self._make_result(agenda=[]),
+            self._make_result(agenda=[]),
+        ])
+        assert merged.agenda == []

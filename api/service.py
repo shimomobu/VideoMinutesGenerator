@@ -1,7 +1,6 @@
 """ジョブ状態管理とバックグラウンド実行"""
 from __future__ import annotations
 
-import tempfile
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -80,8 +79,7 @@ def get_job_snapshot(job_id: str) -> tuple[JobStatus, PipelineResult | None, str
 
 def submit_job(
     job_id: str,
-    file_bytes: bytes,
-    file_suffix: str,
+    upload_path: Path,
     title: str,
     datetime_str: str,
     participants: list[str],
@@ -93,7 +91,6 @@ def submit_job(
         repo = _get_repo()
         repo.set_running(job_id)
 
-        tmp_path: Path | None = None
         try:
             config = load_config()
             asr_provider = WhisperLocalProvider(
@@ -102,12 +99,8 @@ def submit_job(
             )
             formatter_provider = StandardFormatter()
 
-            with tempfile.NamedTemporaryFile(suffix=file_suffix, delete=False) as tmp:
-                tmp.write(file_bytes)
-                tmp_path = Path(tmp.name)
-
             result = run_pipeline(
-                input_path=tmp_path,
+                input_path=upload_path,
                 title=title,
                 datetime_str=datetime_str,
                 participants=participants,
@@ -120,21 +113,27 @@ def submit_job(
                 correction_rules=config.correction_rules,
                 correction_enabled=config.correction_enabled,
                 job_id=job_id,
+                work_dir=config.paths.work_dir,
+                output_dir=config.paths.output_dir,
+                log_dir=config.paths.log_dir,
             )
 
             repo.set_completed(
                 job_id,
-                result.markdown_path,
-                result.json_path,
-                result.manifest_path,
+                str(Path(result.markdown_path).resolve()),
+                str(Path(result.json_path).resolve()),
+                str(Path(result.manifest_path).resolve()),
             )
 
         except Exception as e:
             repo.set_failed(job_id, str(e))
 
         finally:
-            if tmp_path is not None:
-                tmp_path.unlink(missing_ok=True)
+            upload_path.unlink(missing_ok=True)
+            try:
+                upload_path.parent.rmdir()
+            except OSError:
+                pass
             if on_complete is not None:
                 on_complete()
 
