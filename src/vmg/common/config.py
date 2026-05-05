@@ -43,6 +43,7 @@ class AppConfig(BaseModel):
     api_policy: ApiPolicyConfig
     diarization: DiarizationConfig
     paths: PathsConfig
+    api_key: str | None = None
 
 
 def _load_correction_rules(dict_path: str | None) -> list[dict]:
@@ -89,6 +90,7 @@ def load_config(config_path: str | Path = _DEFAULT_CONFIG_PATH) -> AppConfig:
                 output_dir=raw["pipeline"]["output_dir"],
                 log_dir=raw["pipeline"]["log_dir"],
             ),
+            api_key=raw.get("api", {}).get("api_key") or None,
         )
     except (KeyError, ValidationError) as e:
         raise ConfigError(f"設定値が不正です: {e}") from e

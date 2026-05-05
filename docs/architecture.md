@@ -662,7 +662,19 @@ CREATE TABLE IF NOT EXISTS jobs (
 | 複数プロセス対応 | 未対応（単一 uvicorn プロセス） | SQLite WAL / 外部 DB |
 | ジョブ一覧 | 未実装 | GET /jobs（ページネーション付き） |
 | ジョブ削除/TTL | 未実装 | DELETE /jobs/{id}、期限管理 Cron |
-| 認証・認可 | 未実装（別タスク） | API キー、OAuth2 |
+| 認証・認可 | API キー認証（`X-API-Key` ヘッダ）。未設定時は開発モードとして認証スキップ | OAuth2、RBAC |
+
+#### 認証方針（API キー認証）
+
+| 項目 | 内容 |
+|---|---|
+| ヘッダ | `X-API-Key` |
+| 設定キー | `config/default.yaml` の `api.api_key`（文字列 または null） |
+| 未設定時 | 認証スキップ（開発モード） |
+| 設定あり・一致 | 通過（200/202） |
+| 設定あり・不一致 | 401 Unauthorized |
+| 実装箇所 | `api/auth.py`（`verify_api_key` dependency）、`api/routes.py` の全エンドポイントに `dependencies=[Depends(verify_api_key)]` |
+| CLI / Streamlit | 影響なし |
 
 ---
 

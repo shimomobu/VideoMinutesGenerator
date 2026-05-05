@@ -379,6 +379,76 @@ def test_get_job_result_returns_404_when_result_file_missing(client, tmp_path):
     assert resp.status_code == 404
 
 
+# ── API キー認証テスト ────────────────────────────────────────
+
+def test_api_key_correct_allows_access(client, tmp_path):
+    """正しい X-API-Key ヘッダを送ると 202 が返ること"""
+    with patch("api.auth.load_config") as mock_cfg, \
+         patch("api.service.submit_job"):
+        mock_cfg.return_value.api_key = "secret-key"
+        resp = client.post(
+            "/jobs",
+            headers={"X-API-Key": "secret-key"},
+            data={"title": "週次定例", "datetime": "2026-05-01T10:00:00", "participants": "田中"},
+            files={"file": ("meeting.mp4", _fake_file(), "video/mp4")},
+        )
+    assert resp.status_code == 202
+
+
+def test_api_key_wrong_returns_401(client):
+    """誤った X-API-Key ヘッダを送ると 401 が返ること"""
+    with patch("api.auth.load_config") as mock_cfg:
+        mock_cfg.return_value.api_key = "correct-key"
+        resp = client.post(
+            "/jobs",
+            headers={"X-API-Key": "wrong-key"},
+            data={"title": "週次定例", "datetime": "2026-05-01T10:00:00", "participants": "田中"},
+            files={"file": ("meeting.mp4", _fake_file(), "video/mp4")},
+        )
+    assert resp.status_code == 401
+
+
+def test_api_key_missing_returns_401(client):
+    """キー設定済みでヘッダが無い場合に 401 が返ること"""
+    with patch("api.auth.load_config") as mock_cfg:
+        mock_cfg.return_value.api_key = "correct-key"
+        resp = client.post(
+            "/jobs",
+            data={"title": "週次定例", "datetime": "2026-05-01T10:00:00", "participants": "田中"},
+            files={"file": ("meeting.mp4", _fake_file(), "video/mp4")},
+        )
+    assert resp.status_code == 401
+
+
+def test_api_key_unset_skips_auth(client, tmp_path):
+    """api_key が None（未設定）の場合は認証スキップされること"""
+    with patch("api.auth.load_config") as mock_cfg, \
+         patch("api.service.submit_job"):
+        mock_cfg.return_value.api_key = None
+        resp = client.post(
+            "/jobs",
+            data={"title": "週次定例", "datetime": "2026-05-01T10:00:00", "participants": "田中"},
+            files={"file": ("meeting.mp4", _fake_file(), "video/mp4")},
+        )
+    assert resp.status_code == 202
+
+
+def test_api_key_auth_on_get_job_status(client):
+    """GET /jobs/{id} でも 401 が返ること"""
+    with patch("api.auth.load_config") as mock_cfg:
+        mock_cfg.return_value.api_key = "correct-key"
+        resp = client.get("/jobs/some_job_id", headers={"X-API-Key": "wrong"})
+    assert resp.status_code == 401
+
+
+def test_api_key_auth_on_get_job_result(client):
+    """GET /jobs/{id}/result でも 401 が返ること"""
+    with patch("api.auth.load_config") as mock_cfg:
+        mock_cfg.return_value.api_key = "correct-key"
+        resp = client.get("/jobs/some_job_id/result", headers={"X-API-Key": "wrong"})
+    assert resp.status_code == 401
+
+
 def test_post_jobs_cleans_up_dir_on_write_exception(client, tmp_path):
     """upload 書き込み中に例外が起きた場合、upload ディレクトリが残らないこと"""
     upload_dir = tmp_path / "upload"

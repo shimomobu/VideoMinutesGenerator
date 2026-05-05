@@ -233,6 +233,56 @@ streamlit run app.py
 | 非同期化 | 未実装（将来課題） |
 | 本番利用 | 想定していない |
 
+### REST API（FastAPI）
+
+```bash
+# FastAPI 依存をインストール（初回のみ）
+pip install ".[api]"
+
+# 起動
+uvicorn api.app:app --reload
+```
+
+#### エンドポイント
+
+| メソッド | パス | 説明 |
+|---|---|---|
+| POST | /jobs | ファイルアップロードしてジョブ開始 |
+| GET | /jobs/{job_id} | ジョブ状態取得（pending / running / completed / failed） |
+| GET | /jobs/{job_id}/result | 結果取得（`?format=json` または `?format=md`） |
+
+#### API キー認証
+
+`config/default.yaml` の `api.api_key` にキーを設定すると、全エンドポイントで `X-API-Key` ヘッダによる認証が有効になる。
+
+```yaml
+# config/default.yaml
+api:
+  api_key: "your-secret-key"   # null のままにすると認証スキップ（開発モード）
+```
+
+リクエスト例:
+
+```bash
+# ジョブ開始
+curl -X POST http://localhost:8000/jobs \
+  -H "X-API-Key: your-secret-key" \
+  -F "file=@meeting.mp4" \
+  -F "title=週次定例" \
+  -F "datetime=2026-05-01T10:00:00" \
+  -F "participants=田中,佐藤"
+
+# 状態確認
+curl http://localhost:8000/jobs/{job_id} \
+  -H "X-API-Key: your-secret-key"
+
+# 結果取得（Markdown）
+curl "http://localhost:8000/jobs/{job_id}/result?format=md" \
+  -H "X-API-Key: your-secret-key"
+```
+
+キーが一致しない場合は `401 Unauthorized` が返る。
+
 ---
 
 ## 6. 出力ファイル

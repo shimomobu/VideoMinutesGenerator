@@ -17,6 +17,9 @@ analysis:
   max_retries: 3
   timeout_seconds: 900
 
+api:
+  api_key: null             # 未設定時は認証無効（開発モード）。本番では環境変数等で上書きすること
+
 api_policy:
   send_audio: false         # 音声ファイルの外部送信を禁止
   send_video: false         # 映像ファイルの外部送信を禁止

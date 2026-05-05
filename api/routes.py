@@ -5,10 +5,11 @@ import json
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse, PlainTextResponse
 
 from . import service
+from .auth import verify_api_key
 from .models import CreateJobResponse, JobStatus, JobStatusResponse
 
 router = APIRouter()
@@ -20,7 +21,7 @@ _CHUNK_SIZE = 1 * 1024 * 1024  # 1 MB
 _UPLOAD_DIR = Path("data/upload")
 
 
-@router.post("/jobs", status_code=202, response_model=CreateJobResponse)
+@router.post("/jobs", status_code=202, response_model=CreateJobResponse, dependencies=[Depends(verify_api_key)])
 async def create_job(
     file: UploadFile,
     title: str = Form(...),
@@ -78,7 +79,7 @@ async def create_job(
     return CreateJobResponse(job_id=job_id)
 
 
-@router.get("/jobs/{job_id}", response_model=JobStatusResponse)
+@router.get("/jobs/{job_id}", response_model=JobStatusResponse, dependencies=[Depends(verify_api_key)])
 def get_job_status(job_id: str) -> JobStatusResponse:
     snapshot = service.get_job_snapshot(job_id)
     if snapshot is None:
@@ -87,7 +88,7 @@ def get_job_status(job_id: str) -> JobStatusResponse:
     return JobStatusResponse(job_id=job_id, status=status, error=error)
 
 
-@router.get("/jobs/{job_id}/result", response_model=None)
+@router.get("/jobs/{job_id}/result", response_model=None, dependencies=[Depends(verify_api_key)])
 def get_job_result(job_id: str, format: str = "json") -> JSONResponse | PlainTextResponse:
     if format not in _ALLOWED_RESULT_FORMATS:
         raise HTTPException(status_code=400, detail=f"未対応のフォーマットです: {format}（json / md を指定してください）")
