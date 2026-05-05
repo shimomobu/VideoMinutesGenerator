@@ -122,7 +122,7 @@ def e2e_ctx(fixture_video, tmp_path_factory) -> E2EContext:
 
     tmp = tmp_path_factory.mktemp("e2e")
     result = run_pipeline(
-        video_path=fixture_video,
+        input_path=fixture_video,
         title="E2Eテスト会議",
         datetime_str="2026-04-23T10:00:00",
         participants=["テスト参加者"],

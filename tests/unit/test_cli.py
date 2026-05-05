@@ -182,6 +182,24 @@ class TestCliNormalRun:
         assert "田中" in participants
         assert "佐藤" in participants
 
+    def test_work_dir_passed_from_config(self, runner, mock_config, mock_pipeline, mock_providers):
+        """config.paths.work_dir が run_pipeline の work_dir に渡ること"""
+        mock_config.return_value.paths.work_dir = "custom/work"
+        runner.invoke(main, _FULL_ARGS)
+        assert mock_pipeline.call_args.kwargs["work_dir"] == "custom/work"
+
+    def test_output_dir_passed_from_config(self, runner, mock_config, mock_pipeline, mock_providers):
+        """config.paths.output_dir が run_pipeline の output_dir に渡ること"""
+        mock_config.return_value.paths.output_dir = "custom/output"
+        runner.invoke(main, _FULL_ARGS)
+        assert mock_pipeline.call_args.kwargs["output_dir"] == "custom/output"
+
+    def test_log_dir_passed_from_config(self, runner, mock_config, mock_pipeline, mock_providers):
+        """config.paths.log_dir が run_pipeline の log_dir に渡ること"""
+        mock_config.return_value.paths.log_dir = "custom/logs"
+        runner.invoke(main, _FULL_ARGS)
+        assert mock_pipeline.call_args.kwargs["log_dir"] == "custom/logs"
+
 
 class TestCliJobId:
 

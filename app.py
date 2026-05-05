@@ -75,6 +75,9 @@ if run_btn:
                 max_retries=config.llm_max_retries,
                 correction_rules=config.correction_rules,
                 correction_enabled=config.correction_enabled,
+                work_dir=config.paths.work_dir,
+                output_dir=config.paths.output_dir,
+                log_dir=config.paths.log_dir,
             )
     except PipelineError as e:
         st.error(f"エラー [{e.stage}]: {e.cause}")

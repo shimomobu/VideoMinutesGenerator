@@ -1,6 +1,6 @@
 # Video Minutes Generator
 
-会議動画ファイル（mp4 / mov / mkv）から議事録を自動生成する CLI ツール。  
+会議動画・音声ファイル（mp4 / mov / mkv / wav / mp3 / m4a）から議事録を自動生成する CLI ツール。  
 音声認識（Whisper）と LLM（Ollama + gemma4）を**すべてローカルで**実行する。音声・テキストを外部に送信しない。
 
 ---
@@ -92,7 +92,7 @@ cat data/output/job_20260429_100000_abcdef/minutes.md
 | LLM 抽出精度 | gemma4 による抽出は 100% 正確ではない。`owner_candidate`・`due_date_candidate` は候補値であり確定値ではない |
 | 処理時間 | ASR は CPU で音声長と同等〜数倍の時間がかかる。LLM 分析は数分〜十数分かかることがある |
 | 現状の位置づけ | ローカル PoC / MVP。本番品質の議事録作成には人手レビューが必須 |
-| 対応動画形式 | mp4 / mov / mkv のみ |
+| 対応形式 | 動画: mp4 / mov / mkv ／ 音声: wav / mp3 / m4a |
 
 ---
 
@@ -172,10 +172,10 @@ python3 -m vmg \
 
 | オプション | 必須 | 説明 |
 |---|---|---|
-| `--input PATH` | ✅ | 入力動画ファイルパス（mp4 / mov / mkv） |
+| `--input PATH` | ✅ | 入力ファイルパス（mp4 / mov / mkv / wav / mp3 / m4a） |
 | `--title TEXT` | ✅ | 会議タイトル |
 | `--datetime TEXT` | ✅ | 会議日時（ISO 8601 形式、例: `2026-04-29T10:00:00`） |
-| `--participants TEXT` | 推奨 | 参加者名（複数回指定可） |
+| `--participants TEXT` | ✅ | 参加者名（**必須**・複数回指定可） |
 | `--job-id TEXT` | | ジョブ ID（省略時は自動生成） |
 | `--force` | | 中間ファイルを無視して全ステージを強制再実行 |
 
